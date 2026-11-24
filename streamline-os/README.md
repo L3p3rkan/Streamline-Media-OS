@@ -53,6 +53,8 @@ sudo ./streamline-os/install-ubuntu.sh
 
 The build step needs Node.js 24 and pnpm. The installer copies the kiosk files into `/usr/share/streamline` and `/usr/local/bin`, then adds a per-user desktop autostart entry. Sign out and back in, or reboot, to test it. Streamline starts after that Ubuntu account signs in.
 
+For Ubuntu's Snap-packaged Firefox, the kiosk profile lives in Snap's accessible `~/snap/firefox/common/streamline-profile` directory. On first launch, the helper copies an existing profile from `~/.local/share/streamline/firefox-profile` without deleting the original; **Settings → Clear Login** removes both locations.
+
 If you want the kiosk to start immediately after power-on without a sign-in prompt, enable **Automatic Login** for that account in Ubuntu's Users settings. This lets anyone with physical access use the signed-in account and its saved browser passwords, so only enable it for a privately controlled device. Full-disk encryption helps protect data while the computer is powered off.
 
 To disable auto-launch, remove `~/.config/autostart/streamline-launcher.desktop` for that account.

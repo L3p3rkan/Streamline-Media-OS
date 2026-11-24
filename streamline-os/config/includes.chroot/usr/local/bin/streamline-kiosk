@@ -18,8 +18,29 @@ from urllib.parse import unquote, urlsplit
 HOST = "127.0.0.1"
 PORT = 8765
 APP_ROOT = Path("/usr/share/streamline/web")
-PROFILE_ROOT = Path.home() / ".local" / "share" / "streamline" / "firefox-profile"
+LEGACY_PROFILE_ROOT = Path.home() / ".local" / "share" / "streamline" / "firefox-profile"
+SNAP_PROFILE_ROOT = Path.home() / "snap" / "firefox" / "common" / "streamline-profile"
+PROFILE_ROOT = (
+    SNAP_PROFILE_ROOT
+    if Path("/snap/firefox/current").exists()
+    else LEGACY_PROFILE_ROOT
+)
 ALLOWED_ORIGIN = f"http://{HOST}:{PORT}"
+
+
+def _profile_roots() -> tuple[Path, ...]:
+    return tuple(dict.fromkeys((PROFILE_ROOT, LEGACY_PROFILE_ROOT, SNAP_PROFILE_ROOT)))
+
+
+def _migrate_profile(legacy_root: Path, active_root: Path) -> None:
+    if legacy_root == active_root or not legacy_root.is_dir() or active_root.exists():
+        return
+    active_root.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(
+        legacy_root,
+        active_root,
+        ignore=shutil.ignore_patterns("lock", "parent.lock"),
+    )
 
 
 class KioskRuntime:
@@ -74,8 +95,9 @@ class KioskRuntime:
             if self.clear_profile.is_set():
                 self._terminate_browser()
                 try:
-                    if PROFILE_ROOT.exists():
-                        shutil.rmtree(PROFILE_ROOT)
+                    for profile_root in _profile_roots():
+                        if profile_root.exists():
+                            shutil.rmtree(profile_root)
                 except OSError as error:
                     with self.state_lock:
                         self.clear_error = str(error)
@@ -318,6 +340,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    _migrate_profile(LEGACY_PROFILE_ROOT, PROFILE_ROOT)
+    PROFILE_ROOT.mkdir(parents=True, exist_ok=True)
     server = ThreadingHTTPServer((HOST, PORT), DashboardHandler)
     server.daemon_threads = True
     runtime.browser = threading.Thread(
