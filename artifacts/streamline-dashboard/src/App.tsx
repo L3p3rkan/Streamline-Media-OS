@@ -180,14 +180,17 @@ function Header() {
 
 function ServiceCard({ service, index }: { service: StreamingService; index: number }) {
   const [logoFailed, setLogoFailed] = useState(false);
+  const openInNewTab = !isKioskOrigin();
   return (
     <a
       className={`service-card reveal ${index > 3 ? 'delay-1' : ''}`}
       style={{ '--service': serviceColors[service.id] } as CSSProperties}
       href={service.url}
+      target={openInNewTab ? '_blank' : undefined}
+      rel={openInNewTab ? 'noopener noreferrer' : undefined}
       data-service-card
       data-testid={`link-service-${service.id}`}
-      aria-label={`Open ${service.name} in this browser`}
+      aria-label={`Open ${service.name} ${openInNewTab ? 'in a new tab' : 'in this browser'}`}
     >
       <span className="service-top">
         <span className="service-icon" aria-hidden="true">
