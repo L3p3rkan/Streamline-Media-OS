@@ -1,0 +1,15 @@
+# The format of this file is identical to `.dockerignore`.
+# It is used to reduce the size of deployed images to make the process of publishing faster.
+
+# No need to store the pnpm store twice.
+.local
+
+# Large operating-system build outputs
+streamline-os/work
+streamline-os/binary
+streamline-os/chroot
+streamline-os/cache
+streamline-os/.build
+streamline-os/*.iso
+streamline-os/*.img
+streamline-os/*.manifest

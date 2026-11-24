@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Streamline
+Comment=Open the streaming service launcher
+Exec=/usr/local/bin/streamline-browser
+Terminal=false
+X-GNOME-Autostart-enabled=true

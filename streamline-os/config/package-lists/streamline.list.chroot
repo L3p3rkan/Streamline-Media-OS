@@ -1,0 +1,35 @@
+# Live desktop and browser
+live-boot
+live-config
+live-config-systemd
+xfce4
+xfce4-goodies
+lightdm
+lightdm-gtk-greeter
+xserver-xorg
+firefox-esr
+fonts-liberation
+fonts-noto-core
+fonts-noto-color-emoji
+
+# Enterprise Wi-Fi and network settings
+network-manager
+network-manager-gnome
+wpasupplicant
+ca-certificates
+firmware-iwlwifi
+
+# Intel graphics/media and common device support
+firmware-misc-nonfree
+intel-media-va-driver-non-free
+mesa-va-drivers
+vainfo
+pipewire-audio
+wireplumber
+udisks2
+policykit-1
+thunar
+xfce4-terminal
+xfce4-power-manager
+xfce4-screenshooter
+systemd-timesyncd
