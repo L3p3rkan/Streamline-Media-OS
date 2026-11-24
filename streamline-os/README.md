@@ -61,8 +61,8 @@ To disable auto-launch, remove `~/.config/autostart/streamline-launcher.desktop`
 
 ## First use
 
-1. Boot the USB image on the EliteDesk and connect to Wi-Fi or Ethernet.
-2. For enterprise Wi-Fi, open **Network Settings** from the XFCE desktop and add the institution's network. Follow the institution's instructions for EAP method and certificates.
+1. Boot the USB image on the EliteDesk.
+2. From the dashboard, open **Settings → Wi-Fi setup**. This opens the system Wi-Fi panel, where NetworkManager can join home or university networks, including enterprise sign-in and certificate options. Credentials are stored by NetworkManager, not by Streamline.
 3. Open a provider from the Streamline dashboard and sign in on its official site.
 4. If desired, let Firefox save the sign-in in its local password manager. Consider setting a Firefox Primary Password and enabling full-disk encryption when installing the system.
 5. Use **Settings → Clear Login** to erase this device's Streamline Firefox profile and restart with a clean one.
@@ -88,4 +88,4 @@ The first target is an HP EliteDesk with 7th-generation Intel Core i5. Model con
 - `build-iso.sh` — creates the Debian Live hybrid ISO.
 - `config/package-lists/streamline.list.chroot` — lightweight desktop, browser, Wi-Fi, and media packages.
 - `config/includes.chroot/etc/xdg/autostart/streamline-launcher.desktop` — starts the kiosk at desktop login.
-- `config/includes.chroot/usr/local/bin/streamline-kiosk` — serves the local app, launches Firefox, and handles profile clearing.
+- `config/includes.chroot/usr/local/bin/streamline-kiosk` — serves the local app, launches Firefox, and opens local Wi-Fi settings.

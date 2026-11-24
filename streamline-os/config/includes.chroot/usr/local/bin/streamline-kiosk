@@ -64,6 +64,33 @@ def _configure_firefox_home(profile_root: Path) -> None:
     )
 
 
+def _wifi_settings_command() -> list[str] | None:
+    for executable, arguments in (
+        ("gnome-control-center", ["wifi"]),
+        ("nm-connection-editor", []),
+    ):
+        resolved = shutil.which(executable)
+        if resolved:
+            return [resolved, *arguments]
+    return None
+
+
+def _open_wifi_settings() -> None:
+    command = _wifi_settings_command()
+    if command is None:
+        raise RuntimeError(
+            "No Wi-Fi settings app was found. Install GNOME Control Center or NetworkManager's connection editor."
+        )
+    subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+        close_fds=True,
+    )
+
+
 class KioskRuntime:
     def __init__(self) -> None:
         self.clear_profile = threading.Event()
@@ -222,6 +249,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "clearError": runtime.clear_error,
                     "powerAction": runtime.power_action,
                     "powerError": runtime.power_error,
+                    "wifiSettingsAvailable": _wifi_settings_command() is not None,
                 },
             )
             return
@@ -278,7 +306,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlsplit(self.path).path
-        if path not in {"/api/clear-login", "/api/power-action"}:
+        if path not in {"/api/clear-login", "/api/power-action", "/api/open-wifi-settings"}:
             self._send_json(404, {"error": "Not found"})
             return
         payload = self._read_local_json()
@@ -310,6 +338,28 @@ class DashboardHandler(BaseHTTPRequestHandler):
             timer = threading.Timer(0.75, runtime.execute_power_action, args=(action,))
             timer.daemon = True
             timer.start()
+            return
+
+        if path == "/api/open-wifi-settings":
+            if payload != {}:
+                self._send_json(400, {"error": "Expected an empty JSON object"})
+                return
+            with runtime.state_lock:
+                if runtime.power_action is not None or runtime.clear_profile.is_set():
+                    self._send_json(409, {"error": "Kiosk maintenance is in progress; try again when it finishes"})
+                    return
+            try:
+                _open_wifi_settings()
+            except (OSError, RuntimeError) as error:
+                self._send_json(503, {"error": str(error)})
+                return
+            self._send_json(
+                202,
+                {
+                    "accepted": True,
+                    "message": "The system Wi-Fi settings were opened.",
+                },
+            )
             return
 
         if payload != {}:

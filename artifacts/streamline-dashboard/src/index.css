@@ -149,6 +149,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--acid); outline-
 .settings-heading p { margin: 0; max-width: 560px; color: #d2d4d6; font-size: 15px; line-height: 1.7; }
 .settings-layout { display: grid; grid-template-columns: 1.1fr .9fr; gap: 16px; }
 .settings-panel { padding: 27px; border: 1px solid var(--line); border-radius: 14px; background: rgba(77,77,79,.92); }
+.network-panel { margin-top: 16px; }
 .service-order-panel { margin-top: 16px; }
 .service-order-list { display: grid; gap: 7px; margin: 20px 0 0; padding: 0; list-style: none; }
 .service-order-row {

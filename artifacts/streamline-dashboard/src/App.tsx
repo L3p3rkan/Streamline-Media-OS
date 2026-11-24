@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CircleHelp, LockKeyhole, Power, RotateCcw, Settings2, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CircleHelp, LockKeyhole, Power, RotateCcw, Settings2, ShieldCheck, TriangleAlert, Wifi } from 'lucide-react';
 import { Link, Route, Switch, useLocation } from 'wouter';
 
 type StreamingService = { id: string; name: string; url: string; category: string };
-type KioskStatus = { helperAvailable: boolean; clearing: boolean; clearError?: string | null };
+type KioskStatus = { helperAvailable: boolean; clearing: boolean; clearError?: string | null; wifiSettingsAvailable?: boolean };
 
 const services: StreamingService[] = [
   { id: 'netflix', name: 'Netflix', url: 'https://www.netflix.com/', category: 'Series & films' },
@@ -412,6 +412,8 @@ function Settings({
   const [checkingHelper, setCheckingHelper] = useState(isKioskOrigin());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [message, setMessage] = useState('');
+  const [wifiMessage, setWifiMessage] = useState('');
+  const [openingWifiSettings, setOpeningWifiSettings] = useState(false);
   const kiosk = isKioskOrigin();
 
   useEffect(() => {
@@ -424,11 +426,12 @@ function Settings({
     fetch('/api/kiosk-status', { cache: 'no-store', signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error('Kiosk helper unavailable');
-        const result = await response.json() as { helperAvailable?: boolean; clearInProgress?: boolean; clearError?: string | null };
+        const result = await response.json() as { helperAvailable?: boolean; clearInProgress?: boolean; clearError?: string | null; wifiSettingsAvailable?: boolean };
         setStatus({
           helperAvailable: result.helperAvailable === true,
           clearing: result.clearInProgress === true,
           clearError: result.clearError ?? null,
+          wifiSettingsAvailable: result.wifiSettingsAvailable === true,
         });
         if (result.clearError) {
           setMessage('Firefox could not clear the saved login profile. Your existing sign-ins may still be present.');
@@ -464,6 +467,25 @@ function Settings({
       setStatus({ helperAvailable: false, clearing: false });
       setConfirmOpen(false);
       setMessage('Could not reach the local kiosk helper. No success is being reported; login data may still be present.');
+    }
+  };
+
+  const openWifiSettings = async () => {
+    setOpeningWifiSettings(true);
+    setWifiMessage('');
+    try {
+      const response = await fetch('/api/open-wifi-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || 'The Wi-Fi settings could not be opened.');
+      setWifiMessage('Wi-Fi settings opened. Connect to your network there, then return to Streamline.');
+    } catch (error) {
+      setWifiMessage(error instanceof Error ? error.message : 'Could not open the system Wi-Fi settings.');
+    } finally {
+      setOpeningWifiSettings(false);
     }
   };
 
@@ -513,6 +535,34 @@ function Settings({
             <div className="warning-box"><TriangleAlert size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />Clearing affects every saved sign-in in the kiosk profile. Streamline does not store a separate copy.</div>
           </section>
         </div>
+        <section className="settings-panel network-panel reveal delay-2" aria-labelledby="wifi-title">
+          <div className="panel-overline">Network</div>
+          <h2 id="wifi-title">Wi-Fi setup</h2>
+          <p>Open your computer’s Wi-Fi settings to join a home or university network. NetworkManager handles the connection and any enterprise sign-in; Streamline never receives or saves your Wi-Fi password.</p>
+          {!kiosk || checkingHelper || !status.helperAvailable || !status.wifiSettingsAvailable ? (
+            <div className="unavailable" role="status" data-testid="status-wifi-unavailable">
+              <CircleHelp size={15} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+              {!kiosk
+                ? 'Wi-Fi setup is available from Settings on the local Linux kiosk, not from this hosted preview.'
+                : checkingHelper
+                  ? 'Checking whether system Wi-Fi settings are available…'
+                  : !status.helperAvailable
+                    ? 'The local kiosk helper is unavailable, so system Wi-Fi settings cannot be opened here.'
+                    : 'No supported system Wi-Fi settings app was found on this computer.'}
+            </div>
+          ) : (
+            <button
+              className="clear-button"
+              type="button"
+              data-testid="button-open-wifi-settings"
+              onClick={openWifiSettings}
+              disabled={openingWifiSettings}
+            >
+              <Wifi size={16} /> {openingWifiSettings ? 'Opening Wi-Fi settings…' : 'Open Wi-Fi settings'}
+            </button>
+          )}
+          {wifiMessage && <div className="inline-status" role="status" data-testid="status-wifi-result">{wifiMessage}</div>}
+        </section>
         <section className="settings-panel service-order-panel reveal delay-2" aria-labelledby="order-title">
           <div className="panel-overline">Personalize</div>
           <h2 id="order-title">Arrange apps</h2>
