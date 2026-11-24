@@ -52,9 +52,15 @@ class KioskRuntime:
                 self.clear_profile.clear()
                 continue
 
+            firefox = shutil.which("firefox-esr") or shutil.which("firefox")
+            if not firefox:
+                print("streamline-kiosk: Firefox is not installed; retrying in 5 seconds")
+                time.sleep(5)
+                continue
+
             PROFILE_ROOT.mkdir(parents=True, exist_ok=True)
             command = [
-                "firefox-esr",
+                firefox,
                 "--no-remote",
                 "--profile",
                 str(PROFILE_ROOT),

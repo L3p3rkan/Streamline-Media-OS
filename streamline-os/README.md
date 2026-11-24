@@ -39,6 +39,24 @@ sudo DEBIAN_SUITE=trixie ./streamline-os/build-iso.sh
 
 The Replit environment can build and preview the dashboard, but it cannot produce the ISO because it lacks the privileged Debian image-building environment.
 
+## Install on an existing Ubuntu Desktop
+
+This installs Streamline into an already-installed Ubuntu Desktop session; it does not turn the Debian `build-iso.sh` recipe into an Ubuntu ISO builder. Use a graphical desktop session (Ubuntu Desktop, not Ubuntu Server), and have Firefox and Python 3 installed. The launcher accepts either `firefox-esr` or Ubuntu's `firefox`.
+
+From the project root, build and stage the dashboard, then install it for the currently logged-in desktop user:
+
+```sh
+pnpm install --frozen-lockfile
+./streamline-os/build-dashboard.sh
+sudo ./streamline-os/install-ubuntu.sh
+```
+
+The build step needs Node.js 24 and pnpm. The installer copies the kiosk files into `/usr/share/streamline` and `/usr/local/bin`, then adds a per-user desktop autostart entry. Sign out and back in, or reboot, to test it. Streamline starts after that Ubuntu account signs in.
+
+If you want the kiosk to start immediately after power-on without a sign-in prompt, enable **Automatic Login** for that account in Ubuntu's Users settings. This lets anyone with physical access use the signed-in account and its saved browser passwords, so only enable it for a privately controlled device. Full-disk encryption helps protect data while the computer is powered off.
+
+To disable auto-launch, remove `~/.config/autostart/streamline-launcher.desktop` for that account.
+
 ## First use
 
 1. Boot the USB image on the EliteDesk and connect to Wi-Fi or Ethernet.
