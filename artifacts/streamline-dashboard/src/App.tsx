@@ -16,16 +16,43 @@ const services: StreamingService[] = [
   { id: 'apple', name: 'Apple TV+', url: 'https://tv.apple.com/', category: 'Series & films' },
   { id: 'peacock', name: 'Peacock', url: 'https://www.peacocktv.com/', category: 'Series & films' },
   { id: 'youtube', name: 'YouTube', url: 'https://www.youtube.com/', category: 'Video & live' },
+  { id: 'fubo', name: 'Fubo', url: 'https://www.fubo.tv/', category: 'Live TV' },
+  { id: 'sling-tv', name: 'Sling TV', url: 'https://www.sling.com/', category: 'Live TV' },
+  { id: 'youtube-tv', name: 'YouTube TV', url: 'https://tv.youtube.com/', category: 'Live TV' },
+  { id: 'sling-freestream', name: 'Sling Freestream', url: 'https://www.sling.com/freestream', category: 'Free streaming' },
+  { id: 'tubi', name: 'Tubi', url: 'https://tubitv.com/', category: 'Free streaming' },
+  { id: 'britbox', name: 'BritBox', url: 'https://www.britbox.com/', category: 'Series & films' },
+  { id: 'amc-plus', name: 'AMC+', url: 'https://www.amcplus.com/', category: 'Series & films' },
+  { id: 'discovery-plus', name: 'Discovery+', url: 'https://www.discoveryplus.com/', category: 'Documentaries' },
+  { id: 'web-browser', name: 'Web Browser', url: 'https://www.google.com/', category: 'Browse the web' },
+  { id: 'hallmark-plus', name: 'Hallmark+', url: 'https://www.hallmarkplus.com/', category: 'Series & films' },
+  { id: 'espn-unlimited', name: 'ESPN Unlimited', url: 'https://www.espn.com/watch/', category: 'Sports' },
+  { id: 'espn-select', name: 'ESPN Select', url: 'https://www.espn.com/watch/', category: 'Sports' },
+  { id: 'fox-one', name: 'FOX One', url: 'https://www.fox.com/foxone/', category: 'Live TV' },
+  { id: 'mlb-tv', name: 'MLB.TV', url: 'https://www.mlb.com/tv', category: 'Sports' },
+  { id: 'mlb-plus', name: 'MLB+', url: 'https://www.mlb.com/plus', category: 'Sports' },
+  { id: 'angel-studios', name: 'Angel Studios', url: 'https://www.angel.com/', category: 'Films & series' },
+  { id: 'great-american-pure-flix', name: 'Great American Pure Flix', url: 'https://www.pureflix.com/', category: 'Films & series' },
 ];
 
 const serviceMarks: Record<string, string> = {
   netflix: 'N', hulu: 'h', plex: 'P', paramount: 'P+', disney: 'D+', prime: 'prime', max: 'M',
   apple: 'tv+', peacock: 'P', youtube: '▶',
+  fubo: 'F', 'sling-tv': 'S', 'youtube-tv': 'YT', 'sling-freestream': 'SF', tubi: 'T',
+  britbox: 'B', 'amc-plus': 'AMC', 'discovery-plus': 'D+', 'web-browser': '↗',
+  'hallmark-plus': 'H+', 'espn-unlimited': 'U', 'espn-select': 'S', 'fox-one': 'FOX',
+  'mlb-tv': 'MLB', 'mlb-plus': 'MLB+', 'angel-studios': 'A', 'great-american-pure-flix': 'GA',
 };
 const serviceColors: Record<string, string> = {
   netflix: '#ef7773', hulu: '#7bd7a0', plex: '#f3bd69', paramount: '#91aef0',
   disney: '#a7b8ff', prime: '#85d5e8', max: '#b59cff', apple: '#e5e8ed',
   peacock: '#f0a4c5', youtube: '#f18e7c',
+  fubo: '#a7db79', 'sling-tv': '#76b8f4', 'youtube-tv': '#f18e7c',
+  'sling-freestream': '#80d4ba', tubi: '#df8cf0', britbox: '#9da9ff',
+  'amc-plus': '#f17f78', 'discovery-plus': '#8bd6c8', 'web-browser': '#c2d4c8',
+  'hallmark-plus': '#f1a7bd', 'espn-unlimited': '#ee8d82', 'espn-select': '#f0b36e',
+  'fox-one': '#8cb2f1', 'mlb-tv': '#92b5f0', 'mlb-plus': '#82c1ee',
+  'angel-studios': '#e1c985', 'great-american-pure-flix': '#e5a77e',
 };
 
 const KIOSK_ORIGIN = 'http://127.0.0.1:8765';
@@ -149,7 +176,7 @@ function Home() {
         </div>
         <section aria-labelledby="services-title" className="reveal delay-2">
           <div className="section-heading">
-            <h2 id="services-title">Streaming services</h2>
+            <h2 id="services-title">Streaming &amp; web</h2>
             <span>Choose a destination <ArrowUpRight size={12} aria-hidden="true" /></span>
           </div>
           <div className="service-grid">
