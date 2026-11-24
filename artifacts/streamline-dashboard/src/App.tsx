@@ -344,14 +344,7 @@ function Home({ orderedServices }: { orderedServices: StreamingService[] }) {
     <div className="app-shell">
       <Header />
       <main className="home-content">
-        <div className="eyebrow reveal">Your screen, your choice</div>
-        <div className="hero-row reveal delay-1">
-          <h1 className="hero-title">A little less<br /><em>searching.</em> More watching.</h1>
-          <div className="hero-aside">
-            Pick a service to open its <strong>official website</strong> in this browser. Sign in there, and Firefox can remember it for next time.
-          </div>
-        </div>
-        <section aria-labelledby="services-title" className="reveal delay-2">
+        <section aria-labelledby="services-title" className="reveal delay-1">
           <div className="section-heading">
             <h2 id="services-title">Streaming &amp; web</h2>
             <span>Choose a destination <ArrowUpRight size={12} aria-hidden="true" /></span>

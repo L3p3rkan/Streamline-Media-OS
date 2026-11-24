@@ -86,14 +86,9 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--acid); outline-
 }
 .power-link:hover { color: var(--acid); transform: translateX(2px); }
 
-.home-content { width: min(1450px, calc(100% - 88px)); margin: 0 auto; padding: 62px 0 48px; position: relative; z-index: 1; }
+.home-content { width: min(1450px, calc(100% - 88px)); margin: 0 auto; padding: 32px 0 48px; position: relative; z-index: 1; }
 .eyebrow { color: var(--acid); font: 11px 'DM Mono', monospace; letter-spacing: .17em; text-transform: uppercase; display: flex; gap: 11px; align-items: center; }
 .eyebrow::before { content: ''; width: 22px; height: 1px; background: var(--acid); }
-.hero-row { display: flex; align-items: end; justify-content: space-between; gap: 40px; margin: 21px 0 43px; }
-.hero-title { margin: 0; max-width: 780px; font-size: clamp(42px, 6vw, 82px); line-height: .98; letter-spacing: -.075em; font-weight: 600; }
-.hero-title em { color: var(--mint); font-style: normal; }
-.hero-aside { width: 258px; padding: 0 0 5px 18px; border-left: 1px solid rgba(60,180,229,.65); color: #d2d4d6; font-size: 13px; line-height: 1.65; }
-.hero-aside strong { color: var(--ink); font-weight: 700; }
 .section-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .section-heading h2 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .13em; font-weight: 700; color: #f7f8f9; }
 .section-heading span { color: #939598; font: 10px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .12em; }
@@ -219,9 +214,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--acid); outline-
 }
 @media (max-width: 900px) {
   .topbar, .home-content, .settings-content { width: min(100% - 48px, 720px); }
-  .home-content { padding-top: 48px; }
-  .hero-row { align-items: start; flex-direction: column; gap: 17px; margin-bottom: 33px; }
-  .hero-aside { width: min(100%, 440px); }
+  .home-content { padding-top: 28px; }
   .service-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .service-card { min-height: 155px; }
   .settings-layout { grid-template-columns: 1fr; }
@@ -232,9 +225,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--acid); outline-
   .system-note { display: none; }
   .top-actions { gap: 0; }
   .settings-link { padding-left: 12px; }
-  .home-content { padding-top: 38px; }
-  .hero-title { font-size: clamp(43px, 13vw, 64px); }
-  .hero-aside { font-size: 12px; }
+  .home-content { padding-top: 22px; }
   .service-grid { gap: 9px; }
   .service-card { min-height: 135px; padding: 14px; border-radius: 10px; }
   .service-icon { min-width: 40px; max-width: 104px; height: 42px; padding: 4px 6px; font-size: 13px; }
