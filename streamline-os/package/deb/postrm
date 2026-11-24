@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+if [ "${1:-}" = "remove" ] || [ "${1:-}" = "purge" ]; then
+  for home in /home/*; do
+    [ -d "$home" ] || continue
+    autostart="$home/.config/autostart/streamline-launcher.desktop"
+    if [ -f "$autostart" ] && grep -Fqx 'Exec=/usr/local/bin/streamline-kiosk' "$autostart"; then
+      rm -f -- "$autostart"
+    fi
+  done
+fi
+
+exit 0

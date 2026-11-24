@@ -59,6 +59,29 @@ If you want the kiosk to start immediately after power-on without a sign-in prom
 
 To disable auto-launch, remove `~/.config/autostart/streamline-launcher.desktop` for that account.
 
+## Easy install for Ubuntu users
+
+IT can build a downloadable Ubuntu installer package from a version tag. The package includes the prebuilt dashboard, kiosk helper, and automatic start-on-login entry; students do not need Git, Node.js, pnpm, or a terminal.
+
+To build a package locally, use a Debian- or Ubuntu-based build machine with Node.js 24, pnpm, and `dpkg-deb`:
+
+```sh
+pnpm install --frozen-lockfile
+./streamline-os/build-ubuntu-package.sh
+```
+
+The package and its SHA-256 checksum are written to `streamline-os/packages/`. To produce a release download, push a version tag such as `v0.1.0`; GitHub Actions builds the package and attaches it to that release. Because this source repository is private, IT must download the package and share it through an approved university channel or USB drive.
+
+On the student computer, download the `.deb` and open it with Ubuntu's software installer. Alternatively, install it from the folder containing the package:
+
+```sh
+sudo apt install ./streamline-kiosk_0.1.0_amd64.deb
+```
+
+Sign out and back in, or reboot, to start Streamline. The package does not enable automatic login; configure that separately only if appropriate for the student's private device. It installs a system-wide desktop autostart entry, so Streamline starts for desktop users on that computer.
+
+To upgrade, install a newer `.deb` the same way. To remove Streamline, run `sudo apt remove streamline-kiosk`; this removes the app and its autostart entry but **does not erase saved Firefox logins or profiles**. Those remain in each user's home folder unless they separately use **Settings → Clear Login**.
+
 ## First use
 
 1. Boot the USB image on the EliteDesk.
@@ -85,6 +108,7 @@ The first target is an HP EliteDesk with 7th-generation Intel Core i5. Model con
 ## Project files
 
 - `build-dashboard.sh` — builds the web dashboard and stages its static files in the image source.
+- `build-ubuntu-package.sh` — creates a versioned `.deb` for existing Ubuntu Desktop computers.
 - `build-iso.sh` — creates the Debian Live hybrid ISO.
 - `config/package-lists/streamline.list.chroot` — lightweight desktop, browser, Wi-Fi, and media packages.
 - `config/includes.chroot/etc/xdg/autostart/streamline-launcher.desktop` — starts the kiosk at desktop login.

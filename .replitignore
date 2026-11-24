@@ -13,4 +13,5 @@ streamline-os/.build
 streamline-os/*.iso
 streamline-os/*.img
 streamline-os/*.manifest
+streamline-os/packages
 streamline-os/config/includes.chroot/usr/share/streamline/web

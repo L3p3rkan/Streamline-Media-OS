@@ -1,0 +1,12 @@
+Package: streamline-kiosk
+Version: @VERSION@
+Section: net
+Priority: optional
+Architecture: amd64
+Maintainer: Streamline Media OS <noreply@github.com>
+Homepage: https://github.com/L3p3rkan/Streamline-Media-OS
+Depends: python3, network-manager, firefox | firefox-esr, gnome-control-center | network-manager-gnome
+Description: streaming-service kiosk launcher for Ubuntu Desktop
+ Streamline provides a full-screen dashboard for opening official streaming
+ service websites in Firefox. It installs a local kiosk helper and starts
+ Streamline automatically when a desktop user signs in.
