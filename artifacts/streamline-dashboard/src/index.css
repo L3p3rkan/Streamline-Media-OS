@@ -79,6 +79,12 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--acid); outline-
   border-left: 1px solid var(--line); transition: color .18s ease, transform .18s ease;
 }
 .settings-link:hover { color: var(--acid); transform: translateX(2px); }
+.power-link {
+  display: inline-flex; gap: 8px; align-items: center; padding: 10px 0 10px 15px;
+  color: #f7f8f9; background: transparent; border: 0; border-left: 1px solid var(--line);
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: color .18s ease, transform .18s ease;
+}
+.power-link:hover { color: var(--acid); transform: translateX(2px); }
 
 .home-content { width: min(1450px, calc(100% - 88px)); margin: 0 auto; padding: 62px 0 48px; position: relative; z-index: 1; }
 .eyebrow { color: var(--acid); font: 11px 'DM Mono', monospace; letter-spacing: .17em; text-transform: uppercase; display: flex; gap: 11px; align-items: center; }
@@ -190,6 +196,12 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--acid); outline-
 .dialog-actions button { min-height: 42px; padding: 0 14px; border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 700; }
 .cancel-button { background: transparent; border: 1px solid var(--line); color: var(--ink); }
 .confirm-clear { color: #00416B; background: var(--acid); border: 1px solid var(--acid); }
+.power-dialog-actions { flex-wrap: wrap; }
+.restart-button, .poweroff-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.restart-button { color: #f7f8f9; background: rgba(60,180,229,.12); border: 1px solid rgba(60,180,229,.65); }
+.poweroff-button { color: #00416B; background: var(--acid); border: 1px solid var(--acid); }
+.restart-button:disabled, .poweroff-button:disabled { opacity: .5; cursor: not-allowed; }
+.power-status { max-width: 400px; }
 .not-found { min-height: 100dvh; display: grid; place-items: center; padding: 24px; text-align: center; }
 .not-found h1 { font-size: clamp(40px, 7vw, 72px); letter-spacing: -.07em; margin: 0 0 10px; }
 .not-found p { color: var(--muted); }

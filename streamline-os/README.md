@@ -64,6 +64,13 @@ To disable auto-launch, remove `~/.config/autostart/streamline-launcher.desktop`
 3. Open a provider from the Streamline dashboard and sign in on its official site.
 4. If desired, let Firefox save the sign-in in its local password manager. Consider setting a Firefox Primary Password and enabling full-disk encryption when installing the system.
 5. Use **Settings → Clear Login** to erase this device's Streamline Firefox profile and restart with a clean one.
+6. Use **Power** in the header to open **Power Off** or **Restart**. Choose one action in the confirmation dialog; these controls work only on the local kiosk, not the hosted preview.
+
+## Wireless remote
+
+Most USB wireless remotes that act like a keyboard work with the dashboard's built-in navigation: use the directional pad to move focus, **OK/Enter** to select, and **Back/Escape** to return. Power controls are in the header and require choosing an action from a dialog, which helps prevent accidental shutdowns. Remotes that send only proprietary media-control signals may need their own key-mapping software.
+
+Power requests run as the signed-in desktop user through `systemctl`; the installer does not grant passwordless administrator access. If Ubuntu or Debian blocks the request, the dialog reports the error rather than claiming the computer shut down.
 
 Firefox runs with a dedicated profile under the student's home directory. Keep the operating-system user account private and use full-disk encryption on portable or accessible devices. A Firefox Primary Password adds protection for saved logins; it is separate from the streaming-service passwords.
 

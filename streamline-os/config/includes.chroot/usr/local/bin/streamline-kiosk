@@ -28,9 +28,45 @@ class KioskRuntime:
         self.stop = threading.Event()
         self.state_lock = threading.Lock()
         self.clear_error: str | None = None
+        self.power_action: str | None = None
+        self.power_error: str | None = None
         self.next_path = "/"
         self.browser: threading.Thread | None = None
         self.browser_process = None
+
+    def execute_power_action(self, action: str) -> None:
+        try:
+            subprocess.run(
+                ["systemctl", action],
+                check=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+            detail = getattr(error, "stderr", None) or str(error)
+            if isinstance(detail, bytes):
+                detail = detail.decode("utf-8", errors="replace")
+            with self.state_lock:
+                self.power_action = None
+                self.power_error = detail.strip()[:400]
+            print(f"streamline-kiosk: systemctl {action} failed: {detail}")
+            return
+
+        expiry = threading.Timer(15, self.expire_power_action, args=(action,))
+        expiry.daemon = True
+        expiry.start()
+
+    def expire_power_action(self, action: str) -> None:
+        with self.state_lock:
+            if self.power_action == action:
+                self.power_action = None
+                self.power_error = (
+                    f"systemctl {action} returned, but the computer stayed on. "
+                    "Check local power permissions or shutdown blockers."
+                )
 
     def supervise_browser(self) -> None:
         PROFILE_ROOT.parent.mkdir(parents=True, exist_ok=True)
@@ -140,6 +176,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "profileExists": PROFILE_ROOT.exists(),
                     "clearInProgress": runtime.clear_profile.is_set(),
                     "clearError": runtime.clear_error,
+                    "powerAction": runtime.power_action,
+                    "powerError": runtime.power_error,
                 },
             )
             return
@@ -195,35 +233,49 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self) -> None:
-        if urlsplit(self.path).path != "/api/clear-login":
+        path = urlsplit(self.path).path
+        if path not in {"/api/clear-login", "/api/power-action"}:
             self._send_json(404, {"error": "Not found"})
             return
-        if self.headers.get("Host") != f"{HOST}:{PORT}":
-            self._send_json(403, {"error": "Unexpected host"})
+        payload = self._read_local_json()
+        if payload is None:
             return
-        if self.headers.get("Origin") != ALLOWED_ORIGIN:
-            self._send_json(403, {"error": "Request must come from the Streamline dashboard"})
-            return
-        if self.headers.get_content_type() != "application/json":
-            self._send_json(415, {"error": "Expected JSON"})
-            return
-        try:
-            length = int(self.headers.get("Content-Length", "0"))
-            if length < 2:
-                self._send_json(400, {"error": "Expected an empty JSON object"})
+
+        if path == "/api/power-action":
+            action = payload.get("action")
+            if set(payload) != {"action"} or not isinstance(action, str) or action not in {"poweroff", "reboot"}:
+                self._send_json(400, {"error": "Action must be poweroff or reboot"})
                 return
-            if length > 4096:
-                self._send_json(413, {"error": "Request too large"})
-                return
-            payload = json.loads(self.rfile.read(length))
-        except (ValueError, json.JSONDecodeError):
-            self._send_json(400, {"error": "Invalid request"})
+            with runtime.state_lock:
+                if runtime.clear_profile.is_set():
+                    self._send_json(409, {"error": "Login data is being cleared; try again when it finishes"})
+                    return
+                if runtime.power_action is not None:
+                    self._send_json(409, {"error": "A power action is already in progress"})
+                    return
+                runtime.power_action = action
+                runtime.power_error = None
+            self._send_json(
+                202,
+                {
+                    "accepted": True,
+                    "action": action,
+                    "message": "The power action was accepted.",
+                },
+            )
+            timer = threading.Timer(0.75, runtime.execute_power_action, args=(action,))
+            timer.daemon = True
+            timer.start()
             return
+
         if payload != {}:
             self._send_json(400, {"error": "Expected an empty JSON object"})
             return
 
         with runtime.state_lock:
+            if runtime.power_action is not None:
+                self._send_json(409, {"error": "A power action is already in progress"})
+                return
             if runtime.clear_profile.is_set():
                 self._send_json(409, {"error": "A profile clear is already in progress"})
                 return
@@ -236,6 +288,33 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "message": "Firefox is restarting with a clean profile.",
             },
         )
+
+    def _read_local_json(self) -> dict[str, object] | None:
+        if self.headers.get("Host") != f"{HOST}:{PORT}":
+            self._send_json(403, {"error": "Unexpected host"})
+            return None
+        if self.headers.get("Origin") != ALLOWED_ORIGIN:
+            self._send_json(403, {"error": "Request must come from the Streamline dashboard"})
+            return None
+        if self.headers.get_content_type() != "application/json":
+            self._send_json(415, {"error": "Expected JSON"})
+            return None
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if length < 2:
+                self._send_json(400, {"error": "Expected an empty JSON object"})
+                return None
+            if length > 4096:
+                self._send_json(413, {"error": "Request too large"})
+                return None
+            payload = json.loads(self.rfile.read(length))
+        except (ValueError, json.JSONDecodeError):
+            self._send_json(400, {"error": "Invalid request"})
+            return None
+        if not isinstance(payload, dict):
+            self._send_json(400, {"error": "Expected a JSON object"})
+            return None
+        return payload
 
 
 def main() -> None:

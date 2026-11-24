@@ -1,5 +1,5 @@
-import { useEffect, useState, type CSSProperties } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CircleHelp, LockKeyhole, Settings2, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CircleHelp, LockKeyhole, Power, RotateCcw, Settings2, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { Link, Route, Switch, useLocation } from 'wouter';
 
 type StreamingService = { id: string; name: string; url: string; category: string };
@@ -170,11 +170,142 @@ function Header() {
       </Link>
       <div className="top-actions">
         <span className="system-note">Personal media PC</span>
+        <PowerControls />
         <Link href="/settings" className="settings-link" data-testid="link-settings">
           <Settings2 size={16} strokeWidth={1.8} /> Settings
         </Link>
       </div>
     </header>
+  );
+}
+
+type PowerAction = 'poweroff' | 'reboot';
+
+function PowerDialog({
+  kiosk,
+  busy,
+  message,
+  onCancel,
+  onAction,
+}: {
+  kiosk: boolean;
+  busy: boolean;
+  message: string;
+  onCancel: () => void;
+  onAction: (action: PowerAction) => void;
+}) {
+  useEffect(() => {
+    document.querySelector<HTMLElement>('[data-power-cancel]')?.focus();
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busy) onCancel();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [busy, onCancel]);
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onCancel(); }}>
+      <section className="confirm-dialog power-dialog" role="dialog" aria-modal="true" aria-labelledby="power-title" aria-describedby="power-copy" data-testid="dialog-power-options">
+        <div className="panel-overline">Computer controls</div>
+        <h2 id="power-title">Power options</h2>
+        <p id="power-copy">Power off shuts down this computer. Restart closes the session and starts it again.</p>
+        {!kiosk && (
+          <div className="unavailable" role="status">
+            Power controls work only on the locally installed Linux kiosk, not in this hosted preview.
+          </div>
+        )}
+        {message && <div className="inline-status power-status" role="status">{message}</div>}
+        <div className="dialog-actions power-dialog-actions">
+          <button type="button" className="cancel-button" data-power-cancel onClick={onCancel} disabled={busy}>Cancel</button>
+          <button type="button" className="restart-button" onClick={() => onAction('reboot')} disabled={!kiosk || busy}>
+            <RotateCcw size={15} /> Restart
+          </button>
+          <button type="button" className="poweroff-button" onClick={() => onAction('poweroff')} disabled={!kiosk || busy}>
+            <Power size={15} /> Power Off
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PowerControls() {
+  const kiosk = isKioskOrigin();
+  const powerButtonRef = useRef<HTMLButtonElement>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PowerAction | null>(null);
+  const [message, setMessage] = useState('');
+  const closeDialog = () => {
+    setDialogOpen(false);
+    window.requestAnimationFrame(() => powerButtonRef.current?.focus());
+  };
+
+  const requestPowerAction = async (action: PowerAction) => {
+    const label = action === 'poweroff' ? 'Power off' : 'Restart';
+    setPendingAction(action);
+    setMessage(`Requesting ${label.toLowerCase()}…`);
+    try {
+      const response = await fetch('/api/power-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const result = await response.json() as { accepted?: boolean; error?: string };
+      if (!response.ok || result.accepted !== true) {
+        throw new Error(result.error || `The ${label.toLowerCase()} request was not accepted.`);
+      }
+      setMessage(`${label} request accepted. Waiting for the computer…`);
+
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 750));
+        try {
+          const statusResponse = await fetch('/api/kiosk-status', { cache: 'no-store' });
+          const status = await statusResponse.json() as { powerAction?: PowerAction | null; powerError?: string | null };
+          if (status.powerError) {
+            setMessage(`Could not ${label.toLowerCase()}: ${status.powerError}`);
+            setPendingAction(null);
+            return;
+          }
+        } catch {
+          setMessage(`The computer stopped responding after the ${label.toLowerCase()} request. It may be shutting down.`);
+          setPendingAction(null);
+          return;
+        }
+      }
+      setMessage(`${label} was accepted, but the computer is still responding. Check its power permissions or shutdown blockers.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : `Could not request ${label.toLowerCase()}.`);
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        className="power-link"
+        ref={powerButtonRef}
+        aria-haspopup="dialog"
+        aria-label="Open power options"
+        data-testid="button-open-power"
+        onClick={() => { setMessage(''); setDialogOpen(true); }}
+      >
+        <Power size={16} strokeWidth={1.8} /> Power
+      </button>
+      {dialogOpen && (
+        <PowerDialog
+          kiosk={kiosk}
+          busy={pendingAction !== null}
+          message={message}
+          onCancel={closeDialog}
+          onAction={requestPowerAction}
+        />
+      )}
+    </>
   );
 }
 
@@ -231,7 +362,7 @@ function Home({ orderedServices }: { orderedServices: StreamingService[] }) {
         </section>
         <footer className="bottom-row">
           <span className="security-note" data-testid="text-password-safety"><ShieldCheck size={15} /> Sign-ins stay in Firefox Password Manager. Streamline never asks for them.</span>
-          <span className="key-hint">Use arrow keys to move · Enter to open</span>
+          <span className="key-hint">Remote: arrows move · OK selects · Back returns</span>
         </footer>
       </main>
     </div>
