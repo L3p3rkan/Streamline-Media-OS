@@ -362,7 +362,7 @@ function Home({ orderedServices }: { orderedServices: StreamingService[] }) {
         </section>
         <footer className="bottom-row">
           <span className="security-note" data-testid="text-password-safety"><ShieldCheck size={15} /> Sign-ins stay in Firefox Password Manager. Streamline never asks for them.</span>
-          <span className="key-hint">Remote: arrows move · OK selects · Back returns</span>
+          <span className="key-hint">Remote: arrows move · OK selects · Back one page · Home dashboard</span>
         </footer>
       </main>
     </div>

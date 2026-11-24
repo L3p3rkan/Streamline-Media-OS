@@ -70,7 +70,7 @@ To disable auto-launch, remove `~/.config/autostart/streamline-launcher.desktop`
 
 ## Wireless remote
 
-Most USB wireless remotes that act like a keyboard work with the dashboard's built-in navigation: use the directional pad to move focus, **OK/Enter** to select, and **Back/Escape** to return. Power controls are in the header and require choosing an action from a dialog, which helps prevent accidental shutdowns. Remotes that send only proprietary media-control signals may need their own key-mapping software.
+Most USB wireless remotes that act like a keyboard work with the dashboard's built-in navigation: use the directional pad to move focus and **OK/Enter** to select. In Firefox, **Back** moves one browser-history entry and **Home** (or **Alt+Home** on a keyboard) returns to the dashboard. Escape returns within the dashboard; on third-party service pages, the site/browser handles it normally. Power controls are in the header and require choosing an action from a dialog, which helps prevent accidental shutdowns. Remotes that send only proprietary media-control signals may need their own key-mapping software.
 
 Power requests run as the signed-in desktop user through `systemctl`; the installer does not grant passwordless administrator access. If Ubuntu or Debian blocks the request, the dialog reports the error rather than claiming the computer shut down.
 

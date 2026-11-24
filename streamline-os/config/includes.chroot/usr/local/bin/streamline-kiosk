@@ -43,6 +43,27 @@ def _migrate_profile(legacy_root: Path, active_root: Path) -> None:
     )
 
 
+def _configure_firefox_home(profile_root: Path) -> None:
+    user_js = profile_root / "user.js"
+    existing_lines = user_js.read_text(encoding="utf-8").splitlines() if user_js.exists() else []
+    managed_preferences = {
+        'browser.startup.homepage': (
+            f'user_pref("browser.startup.homepage", {json.dumps(ALLOWED_ORIGIN + "/")});'
+        ),
+        'browser.startup.page': 'user_pref("browser.startup.page", 1);',
+        'browser.backspace_action': 'user_pref("browser.backspace_action", 0);',
+    }
+    preserved_lines = [
+        line
+        for line in existing_lines
+        if not any(line.lstrip().startswith(f'user_pref("{name}",') for name in managed_preferences)
+    ]
+    user_js.write_text(
+        "\n".join([*preserved_lines, *managed_preferences.values()]) + "\n",
+        encoding="utf-8",
+    )
+
+
 class KioskRuntime:
     def __init__(self) -> None:
         self.clear_profile = threading.Event()
@@ -117,6 +138,7 @@ class KioskRuntime:
                 continue
 
             PROFILE_ROOT.mkdir(parents=True, exist_ok=True)
+            _configure_firefox_home(PROFILE_ROOT)
             command = [
                 firefox,
                 "--no-remote",
