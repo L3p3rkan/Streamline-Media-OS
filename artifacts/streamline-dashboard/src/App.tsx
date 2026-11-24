@@ -43,6 +43,35 @@ const serviceMarks: Record<string, string> = {
   'hallmark-plus': 'H+', 'espn-unlimited': 'U', 'espn-select': 'S', 'fox-one': 'FOX',
   'mlb-tv': 'MLB', 'mlb-plus': 'MLB+', 'angel-studios': 'A', 'great-american-pure-flix': 'GA',
 };
+const serviceLogos: Record<string, string> = {
+  netflix: '/brand-logos/netflix.png',
+  hulu: '/brand-logos/hulu.png',
+  plex: '/brand-logos/plex.ico',
+  paramount: '/brand-logos/paramount.ico',
+  disney: '/brand-logos/disney.svg',
+  prime: '/brand-logos/prime.png',
+  max: '/brand-logos/max.png',
+  apple: '/brand-logos/apple.png',
+  peacock: '/brand-logos/peacock.png',
+  youtube: '/brand-logos/youtube.png',
+  fubo: '/brand-logos/fubo.png',
+  'sling-tv': '/brand-logos/sling-tv.ico',
+  'youtube-tv': '/brand-logos/youtube-tv.png',
+  'sling-freestream': '/brand-logos/sling-freestream.ico',
+  tubi: '/brand-logos/tubi.png',
+  britbox: '/brand-logos/britbox.png',
+  'amc-plus': '/brand-logos/amc-plus.png',
+  'discovery-plus': '/brand-logos/discovery-plus.png',
+  'web-browser': '/brand-logos/web-browser.png',
+  'hallmark-plus': '/brand-logos/hallmark-plus.png',
+  'espn-unlimited': '/brand-logos/espn-unlimited.ico',
+  'espn-select': '/brand-logos/espn-select.ico',
+  'fox-one': '/brand-logos/fox-one.png',
+  'mlb-tv': '/brand-logos/mlb-tv.png',
+  'mlb-plus': '/brand-logos/mlb-plus.png',
+  'angel-studios': '/brand-logos/angel-studios.png',
+  'great-american-pure-flix': '/brand-logos/great-american-pure-flix.png',
+};
 const serviceColors: Record<string, string> = Object.fromEntries(
   services.map(({ id }) => [id, '#3CB4E5']),
 );
@@ -150,6 +179,7 @@ function Header() {
 }
 
 function ServiceCard({ service, index }: { service: StreamingService; index: number }) {
+  const [logoFailed, setLogoFailed] = useState(false);
   return (
     <a
       className={`service-card reveal ${index > 3 ? 'delay-1' : ''}`}
@@ -160,7 +190,11 @@ function ServiceCard({ service, index }: { service: StreamingService; index: num
       aria-label={`Open ${service.name} in this browser`}
     >
       <span className="service-top">
-        <span className="service-icon" aria-hidden="true">{serviceMarks[service.id]}</span>
+        <span className="service-icon" aria-hidden="true">
+          {logoFailed
+            ? serviceMarks[service.id]
+            : <img className="service-logo" src={serviceLogos[service.id]} alt="" onError={() => setLogoFailed(true)} />}
+        </span>
         <span className="service-category">{service.category}</span>
       </span>
       <span className="service-bottom">
