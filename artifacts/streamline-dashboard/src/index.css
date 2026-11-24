@@ -142,6 +142,23 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--acid); outline-
 .settings-heading p { margin: 0; max-width: 560px; color: #aebbb4; font-size: 15px; line-height: 1.7; }
 .settings-layout { display: grid; grid-template-columns: 1.1fr .9fr; gap: 16px; }
 .settings-panel { padding: 27px; border: 1px solid var(--line); border-radius: 14px; background: rgba(26,38,34,.8); }
+.service-order-panel { margin-top: 16px; }
+.service-order-list { display: grid; gap: 7px; margin: 20px 0 0; padding: 0; list-style: none; }
+.service-order-row {
+  min-height: 52px; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center;
+  gap: 12px; padding: 6px 8px 6px 14px; border: 1px solid rgba(221,237,222,.09); border-radius: 8px;
+  background: rgba(255,255,255,.018);
+}
+.service-order-position { color: #84948b; font: 11px 'DM Mono', monospace; }
+.service-order-name { min-width: 0; color: #e4e9e2; font-size: 13px; font-weight: 700; }
+.service-order-actions { display: flex; gap: 6px; }
+.order-button {
+  width: 36px; height: 36px; display: grid; place-items: center; color: var(--mint);
+  border: 1px solid rgba(221,237,222,.17); border-radius: 7px; background: rgba(255,255,255,.025);
+  cursor: pointer; transition: border-color .18s ease, background .18s ease;
+}
+.order-button:hover:not(:disabled) { border-color: var(--acid); background: rgba(208,240,120,.08); }
+.order-button:disabled { color: #58665f; cursor: not-allowed; opacity: .55; }
 .panel-overline { color: var(--acid); font: 10px 'DM Mono', monospace; letter-spacing: .14em; text-transform: uppercase; }
 .settings-panel h2 { margin: 11px 0 9px; font-size: 22px; letter-spacing: -.05em; }
 .settings-panel p { color: #aebbb4; font-size: 13px; line-height: 1.7; margin: 0; }

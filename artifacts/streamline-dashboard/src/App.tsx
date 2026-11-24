@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import { ArrowLeft, ArrowUpRight, CircleHelp, LockKeyhole, Settings2, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CircleHelp, LockKeyhole, Settings2, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { Link, Route, Switch, useLocation } from 'wouter';
 
 type StreamingService = { id: string; name: string; url: string; category: string };
@@ -54,6 +54,23 @@ const serviceColors: Record<string, string> = {
   'fox-one': '#8cb2f1', 'mlb-tv': '#92b5f0', 'mlb-plus': '#82c1ee',
   'angel-studios': '#e1c985', 'great-american-pure-flix': '#e5a77e',
 };
+
+const SERVICE_ORDER_KEY = 'streamline-service-order';
+const defaultServiceOrder = services.map((service) => service.id);
+
+function readServiceOrder() {
+  try {
+    const saved = window.localStorage.getItem(SERVICE_ORDER_KEY);
+    if (!saved) return defaultServiceOrder;
+    const parsed: unknown = JSON.parse(saved);
+    if (!Array.isArray(parsed) || !parsed.every((id) => typeof id === 'string')) return defaultServiceOrder;
+    const available = new Set(defaultServiceOrder);
+    const validSavedIds = [...new Set(parsed.filter((id: string) => available.has(id)))];
+    return [...validSavedIds, ...defaultServiceOrder.filter((id) => !validSavedIds.includes(id))];
+  } catch {
+    return defaultServiceOrder;
+  }
+}
 
 const KIOSK_ORIGIN = 'http://127.0.0.1:8765';
 
@@ -162,7 +179,7 @@ function ServiceCard({ service, index }: { service: StreamingService; index: num
   );
 }
 
-function Home() {
+function Home({ orderedServices }: { orderedServices: StreamingService[] }) {
   return (
     <div className="app-shell">
       <Header />
@@ -180,7 +197,7 @@ function Home() {
             <span>Choose a destination <ArrowUpRight size={12} aria-hidden="true" /></span>
           </div>
           <div className="service-grid">
-            {services.map((service, index) => <ServiceCard key={service.id} service={service} index={index} />)}
+            {orderedServices.map((service, index) => <ServiceCard key={service.id} service={service} index={index} />)}
           </div>
         </section>
         <footer className="bottom-row">
@@ -222,7 +239,15 @@ function ClearConfirmDialog({ onCancel, onConfirm, busy }: { onCancel: () => voi
   );
 }
 
-function Settings() {
+function Settings({
+  orderedServices,
+  onMoveService,
+  orderMessage,
+}: {
+  orderedServices: StreamingService[];
+  onMoveService: (serviceId: string, offset: number) => void;
+  orderMessage: string;
+}) {
   const [status, setStatus] = useState<KioskStatus>({ helperAvailable: false, clearing: false });
   const [checkingHelper, setCheckingHelper] = useState(isKioskOrigin());
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -328,6 +353,42 @@ function Settings() {
             <div className="warning-box"><TriangleAlert size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />Clearing affects every saved sign-in in the kiosk profile. Streamline does not store a separate copy.</div>
           </section>
         </div>
+        <section className="settings-panel service-order-panel reveal delay-2" aria-labelledby="order-title">
+          <div className="panel-overline">Personalize</div>
+          <h2 id="order-title">Arrange apps</h2>
+          <p>Move your favorite services toward the top. Your order is saved on this device.</p>
+          {orderMessage && <div className="inline-status" role="status">{orderMessage}</div>}
+          <ol className="service-order-list">
+            {orderedServices.map((service, index) => (
+              <li className="service-order-row" key={service.id}>
+                <span className="service-order-position">{String(index + 1).padStart(2, '0')}</span>
+                <span className="service-order-name">{service.name}</span>
+                <span className="service-order-actions">
+                  <button
+                    type="button"
+                    className="order-button"
+                    aria-label={`Move ${service.name} up`}
+                    title={`Move ${service.name} up`}
+                    disabled={index === 0}
+                    onClick={() => onMoveService(service.id, -1)}
+                  >
+                    <ArrowUp size={16} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="order-button"
+                    aria-label={`Move ${service.name} down`}
+                    title={`Move ${service.name} down`}
+                    disabled={index === orderedServices.length - 1}
+                    onClick={() => onMoveService(service.id, 1)}
+                  >
+                    <ArrowDown size={16} aria-hidden="true" />
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
       </main>
       {confirmOpen && <ClearConfirmDialog onCancel={() => setConfirmOpen(false)} onConfirm={clearLogin} busy={status.clearing} />}
     </div>
@@ -340,7 +401,36 @@ function NotFound() {
 
 function App() {
   useRemoteNavigation();
-  return <Switch><Route path="/" component={Home} /><Route path="/settings" component={Settings} /><Route component={NotFound} /></Switch>;
+  const [serviceOrder, setServiceOrder] = useState(readServiceOrder);
+  const [orderMessage, setOrderMessage] = useState('');
+  const orderedServices = serviceOrder
+    .map((id) => services.find((service) => service.id === id))
+    .filter((service): service is StreamingService => service !== undefined);
+
+  const moveService = (serviceId: string, offset: number) => {
+    const currentIndex = serviceOrder.indexOf(serviceId);
+    const nextIndex = currentIndex + offset;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= serviceOrder.length) return;
+    const nextOrder = [...serviceOrder];
+    [nextOrder[currentIndex], nextOrder[nextIndex]] = [nextOrder[nextIndex], nextOrder[currentIndex]];
+    setServiceOrder(nextOrder);
+    try {
+      window.localStorage.setItem(SERVICE_ORDER_KEY, JSON.stringify(nextOrder));
+      setOrderMessage('Your app order is saved on this device.');
+    } catch {
+      setOrderMessage('Your order changed for this session, but could not be saved on this device.');
+    }
+  };
+
+  return (
+    <Switch>
+      <Route path="/"><Home orderedServices={orderedServices} /></Route>
+      <Route path="/settings">
+        <Settings orderedServices={orderedServices} onMoveService={moveService} orderMessage={orderMessage} />
+      </Route>
+      <Route component={NotFound} />
+    </Switch>
+  );
 }
 
 export default App;
