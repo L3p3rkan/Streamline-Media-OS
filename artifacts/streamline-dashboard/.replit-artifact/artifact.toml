@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Streamline"
+description = "A full-screen streaming dashboard for personal-use HP EliteDesk computers running lightweight Linux. It opens official streaming sites, keeps account sign-ins in Firefox's local password manager, and integrates with a local kiosk helper to clear browser login data on demand."
+version = "1.0.0"
+id = "artifacts/streamline-dashboard"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20400
+
+[services.development]
+run = "pnpm --filter @workspace/streamline-dashboard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/streamline-dashboard", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/streamline-dashboard/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20400"
+BASE_PATH = "/"

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 OUTPUT_ISO="live-image-amd64.hybrid.iso"
 DEBIAN_SUITE="${DEBIAN_SUITE:-stable}"
 
@@ -22,6 +23,11 @@ for tool in lb debootstrap xorriso mksquashfs; do
     exit 1
   fi
 done
+
+if [[ ! -s "$SCRIPT_DIR/config/includes.chroot/usr/share/streamline/web/index.html" ]]; then
+  echo "The dashboard bundle is missing. Run ./streamline-os/build-dashboard.sh first." >&2
+  exit 1
+fi
 
 cd "$SCRIPT_DIR"
 

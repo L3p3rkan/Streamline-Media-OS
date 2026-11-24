@@ -3,7 +3,6 @@ live-boot
 live-config
 live-config-systemd
 xfce4
-xfce4-goodies
 lightdm
 lightdm-gtk-greeter
 xserver-xorg
@@ -33,3 +32,4 @@ xfce4-terminal
 xfce4-power-manager
 xfce4-screenshooter
 systemd-timesyncd
+python3

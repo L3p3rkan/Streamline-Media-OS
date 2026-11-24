@@ -2,6 +2,6 @@
 Type=Application
 Name=Streamline
 Comment=Open the streaming service launcher
-Exec=/usr/local/bin/streamline-browser
+Exec=/usr/local/bin/streamline-kiosk
 Terminal=false
 X-GNOME-Autostart-enabled=true

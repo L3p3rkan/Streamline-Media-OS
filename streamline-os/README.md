@@ -1,67 +1,64 @@
 # Streamline OS
 
-Streamline OS is a Debian Live image recipe for repurposed HP EliteDesk computers with 7th-generation Intel Core i5 processors. It boots to a keyboard- and remote-friendly browser launcher, supports enterprise Wi-Fi through NetworkManager, and includes Intel media acceleration packages.
+Streamline is a lightweight Debian Live image for personal-use HP EliteDesk computers with 7th-generation Intel Core i5 processors. XFCE provides the desktop; the custom dashboard opens in Firefox kiosk mode. Students sign in directly on official streaming-service websites.
 
-## What this first build does
+## What is included
 
-- Boots a live x86-64 desktop with XFCE and LightDM auto-login.
-- Opens Firefox ESR in kiosk mode to a local launcher with official streaming-service websites.
-- Includes NetworkManager's graphical connection editor and WPA supplicant for WPA2/WPA3-Enterprise (802.1X), including EAP-TLS, PEAP, and TTLS options.
-- Includes Intel VA-API and Wi-Fi firmware packages where Debian's non-free repositories provide them.
-- Does not store service logins or Wi-Fi credentials in the image.
+- Debian Live for x86-64, with XFCE, Firefox ESR, Intel media-driver packages, and common Wi-Fi firmware.
+- NetworkManager's graphical editor for enterprise Wi-Fi (802.1X), including EAP-TLS, PEAP, and TTLS.
+- A full-screen Streamline dashboard with official links for major streaming providers.
+- A dedicated Firefox profile that can remember a student's sign-ins without the dashboard receiving credentials.
+- A **Clear Login** action that closes Firefox, deletes the dedicated browser profile (saved passwords, cookies, and site data), and relaunches a clean profile.
 
-This is a first bootable live-image recipe, not a provider-certified device or a promise that every service will play at every resolution. Netflix, Hulu, Plex, Paramount+, and other providers control browser support, Widevine/DRM levels, HDCP requirements, account eligibility, and available resolutions. Firefox may need to download its Widevine component after first launch. Use only the providers' official sites and supported playback paths; Streamline OS does not bypass DRM.
+The dashboard never asks for usernames or passwords. Students enter them only on the providers' official sites, and Firefox handles password saving. Clearing the Streamline profile signs out of all sites in that kiosk browser and removes all saved browser logins in that profile. It does not delete or cancel the student's service accounts.
 
-## Build the live USB image
+## Build
 
-Build on a Debian stable x86-64 machine or VM with internet access and at least 30 GB of free disk space. The build uses Debian Live's packages and must run as root. It cannot produce a bootable image from this Replit Linux environment because it does not have the required Debian chroot build tools and privileges.
+The ISO must be built on a Debian x86-64 machine or VM with internet access, at least 30 GB free disk space, and root privileges. Build the dashboard first from the project root:
 
-Install the build tools on the Debian build machine:
+```sh
+pnpm install --frozen-lockfile
+./streamline-os/build-dashboard.sh
+```
+
+The dashboard build needs Node.js 24 and pnpm. Then install the Debian image tools and build the bootable image:
 
 ```sh
 sudo apt update
 sudo apt install live-build debootstrap xorriso squashfs-tools
-```
-
-From the project root, build:
-
-```sh
 sudo ./streamline-os/build-iso.sh
 ```
 
-The resulting hybrid ISO is written to `streamline-os/live-image-amd64.hybrid.iso`. Write it to a USB drive with a disk-imaging tool, then boot an EliteDesk from that USB. The script deliberately does not write to USB devices or install anything on the target computer.
+The ISO is written to `streamline-os/live-image-amd64.hybrid.iso`. The build script does not write to USB drives or install onto a computer. Use a disk-imaging utility to write the ISO to a USB drive, then boot an EliteDesk from it.
 
-To build against a named Debian suite instead of the current stable alias:
+To select a named Debian suite:
 
 ```sh
 sudo DEBIAN_SUITE=trixie ./streamline-os/build-iso.sh
 ```
 
-## First boot
+The Replit environment can build and preview the dashboard, but it cannot produce the ISO because it lacks the privileged Debian image-building environment.
 
-1. Connect a display over HDMI or DisplayPort, plus a keyboard or supported USB remote.
-2. Boot the live USB and wait for the Streamline launcher.
-3. Open **Network Settings** from the desktop menu or run `nm-connection-editor` from a terminal.
-4. Add the organization's Wi-Fi network, select **WPA & WPA2 Enterprise**, choose the EAP method and identity, and provide the organization's CA certificate or client certificate/key when required.
-5. Open a provider tile and sign in on that provider's official website.
+## First use
 
-For EAP-TLS, obtain the client certificate and private key from the network administrator. Keep them on the device or a removable drive with appropriate file permissions; never put them in this repository or the image build.
+1. Boot the USB image on the EliteDesk and connect to Wi-Fi or Ethernet.
+2. For enterprise Wi-Fi, open **Network Settings** from the XFCE desktop and add the institution's network. Follow the institution's instructions for EAP method and certificates.
+3. Open a provider from the Streamline dashboard and sign in on its official site.
+4. If desired, let Firefox save the sign-in in its local password manager. Consider setting a Firefox Primary Password and enabling full-disk encryption when installing the system.
+5. Use **Settings → Clear Login** to erase this device's Streamline Firefox profile and restart with a clean one.
 
-## Controls
+Firefox runs with a dedicated profile under the student's home directory. Keep the operating-system user account private and use full-disk encryption on portable or accessible devices. A Firefox Primary Password adds protection for saved logins; it is separate from the streaming-service passwords.
 
-- Move through launcher links with Tab or arrow keys and activate with Enter.
-- Use the browser's Back command (Alt+Left) to return to the launcher.
-- Exit the browser with Alt+F4 to reach the XFCE desktop and network settings.
+## Playback and hardware limits
 
-## Hardware notes
+These are ordinary browser links, not licensed native streaming apps or certified streaming hardware. Providers decide whether playback is allowed, which DRM level is available, and what resolution is supported. DRM, HDCP, browser updates, Wi-Fi hardware, display connections, and codec support can affect playback. Streamline does not bypass DRM.
 
-The initial target is an HP EliteDesk with a 7th-generation Intel Core i5. This is x86-64 hardware, but EliteDesk models differ in Wi-Fi card, memory, graphics output, and firmware settings. Check that the specific unit has a compatible Intel Wi-Fi adapter; Ethernet is available as a fallback. VA-API support depends on the exact Intel graphics device, browser configuration, and media codec.
+The first target is an HP EliteDesk with 7th-generation Intel Core i5. Model configurations differ, so test the actual Wi-Fi card, HDMI/DisplayPort audio, suspend/resume, video playback, and remote-control keys. The live session is temporary; install to a disk for normal persistent use. Installation and full-disk encryption support should be tested on the exact image before selling it.
 
-Before daily use, test HDMI audio, suspend/resume, Wi-Fi roaming, remote-control keys, and playback in each service. Live-session settings and downloads are temporary unless the image is later extended with persistence or installed to disk.
+## Project files
 
-## Project layout
-
-- `build-iso.sh` — guarded Debian Live build command.
-- `config/package-lists/streamline.list.chroot` — installed packages.
-- `config/includes.chroot/` — launcher, auto-login, and session configuration copied into the image.
-- `config/includes.chroot/etc/NetworkManager/conf.d/` — NetworkManager Wi-Fi defaults.
+- `build-dashboard.sh` — builds the web dashboard and stages its static files in the image source.
+- `build-iso.sh` — creates the Debian Live hybrid ISO.
+- `config/package-lists/streamline.list.chroot` — lightweight desktop, browser, Wi-Fi, and media packages.
+- `config/includes.chroot/etc/xdg/autostart/streamline-launcher.desktop` — starts the kiosk at desktop login.
+- `config/includes.chroot/usr/local/bin/streamline-kiosk` — serves the local app, launches Firefox, and handles profile clearing.
