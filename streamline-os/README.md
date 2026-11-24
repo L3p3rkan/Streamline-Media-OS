@@ -70,12 +70,12 @@ pnpm install --frozen-lockfile
 ./streamline-os/build-ubuntu-package.sh
 ```
 
-The package and its SHA-256 checksum are written to `streamline-os/packages/`. To produce a release download, push a version tag such as `v0.1.0`; GitHub Actions builds the package and attaches it to that release. Because this source repository is private, IT must download the package and share it through an approved university channel or USB drive.
+The package and its SHA-256 checksum are written to `streamline-os/packages/`. To produce a release download, push a version tag such as `v0.1.1`; GitHub Actions builds the package and attaches it to that release. Because this source repository is private, IT must download the package and share it through an approved university channel or USB drive.
 
 On the student computer, download the `.deb` and open it with Ubuntu's software installer. Alternatively, install it from the folder containing the package:
 
 ```sh
-sudo apt install ./streamline-kiosk_0.1.0_amd64.deb
+sudo apt install ./streamline-kiosk_0.1.1_amd64.deb
 ```
 
 Sign out and back in, or reboot, to start Streamline. The package does not enable automatic login; configure that separately only if appropriate for the student's private device. It installs a system-wide desktop autostart entry, so Streamline starts for desktop users on that computer.
