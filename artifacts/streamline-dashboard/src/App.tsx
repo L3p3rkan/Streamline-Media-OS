@@ -43,17 +43,9 @@ const serviceMarks: Record<string, string> = {
   'hallmark-plus': 'H+', 'espn-unlimited': 'U', 'espn-select': 'S', 'fox-one': 'FOX',
   'mlb-tv': 'MLB', 'mlb-plus': 'MLB+', 'angel-studios': 'A', 'great-american-pure-flix': 'GA',
 };
-const serviceColors: Record<string, string> = {
-  netflix: '#ef7773', hulu: '#7bd7a0', plex: '#f3bd69', paramount: '#91aef0',
-  disney: '#a7b8ff', prime: '#85d5e8', max: '#b59cff', apple: '#e5e8ed',
-  peacock: '#f0a4c5', youtube: '#f18e7c',
-  fubo: '#a7db79', 'sling-tv': '#76b8f4', 'youtube-tv': '#f18e7c',
-  'sling-freestream': '#80d4ba', tubi: '#df8cf0', britbox: '#9da9ff',
-  'amc-plus': '#f17f78', 'discovery-plus': '#8bd6c8', 'web-browser': '#c2d4c8',
-  'hallmark-plus': '#f1a7bd', 'espn-unlimited': '#ee8d82', 'espn-select': '#f0b36e',
-  'fox-one': '#8cb2f1', 'mlb-tv': '#92b5f0', 'mlb-plus': '#82c1ee',
-  'angel-studios': '#e1c985', 'great-american-pure-flix': '#e5a77e',
-};
+const serviceColors: Record<string, string> = Object.fromEntries(
+  services.map(({ id }) => [id, '#3CB4E5']),
+);
 
 const SERVICE_ORDER_KEY = 'streamline-service-order';
 const defaultServiceOrder = services.map((service) => service.id);
