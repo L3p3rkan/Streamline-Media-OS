@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.error
 import urllib.request
 from pathlib import Path
 from unittest import mock
@@ -79,6 +80,69 @@ class KioskRuntimeTests(unittest.TestCase):
 
             boot_id_path.write_text("boot-two\n", encoding="utf-8")
             self.assertFalse(self.kiosk._exit_requested_until_reboot(marker_directory, boot_id_path))
+
+    def test_peacock_test_uses_temporary_private_chrome_profile(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": temp_dir}):
+                process = mock.Mock()
+                with mock.patch.object(self.kiosk.shutil, "which", return_value="/usr/bin/google-chrome-stable"):
+                    with mock.patch.object(self.kiosk.subprocess, "Popen", return_value=process) as popen:
+                        with mock.patch.object(self.kiosk.threading, "Thread") as thread:
+                            message = self.kiosk._open_peacock_test()
+
+            command = popen.call_args.args[0]
+            profile_argument = next(argument for argument in command if argument.startswith("--user-data-dir="))
+            profile_directory = Path(profile_argument.split("=", 1)[1])
+            self.assertIn("--incognito", command)
+            self.assertIn("--disable-sync", command)
+            self.assertEqual(command[-1], "https://www.peacocktv.com/")
+            self.assertTrue(profile_directory.is_dir())
+            self.assertIn("temporary private Chrome window", message)
+            thread.assert_called_once()
+            thread.call_args.kwargs["target"](*thread.call_args.kwargs["args"])
+            process.wait.assert_called_once_with()
+            self.assertFalse(profile_directory.exists())
+
+    def test_peacock_test_reports_when_google_chrome_is_missing(self):
+        with mock.patch.object(self.kiosk.shutil, "which", return_value=None):
+            with self.assertRaisesRegex(RuntimeError, "Google Chrome is not installed"):
+                self.kiosk._open_peacock_test()
+
+    def test_peacock_test_endpoint_returns_launch_result_or_clear_error(self):
+        server = self.kiosk.ThreadingHTTPServer(("127.0.0.1", 0), self.kiosk.DashboardHandler)
+        server.daemon_threads = True
+        server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+
+        def create_request():
+            return urllib.request.Request(
+                f"http://127.0.0.1:{server.server_port}/api/open-peacock-test",
+                data=json.dumps({}).encode("utf-8"),
+                headers={
+                    "Host": f"{self.kiosk.HOST}:{self.kiosk.PORT}",
+                    "Origin": self.kiosk.ALLOWED_ORIGIN,
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+
+        try:
+            with mock.patch.object(
+                self.kiosk,
+                "_open_peacock_test",
+                side_effect=["Temporary Chrome session opened.", RuntimeError("Google Chrome is not installed.")],
+            ):
+                with urllib.request.urlopen(create_request(), timeout=3) as response:
+                    self.assertEqual(response.status, 202)
+                    self.assertTrue(json.loads(response.read())["accepted"])
+                with self.assertRaises(urllib.error.HTTPError) as error:
+                    urllib.request.urlopen(create_request(), timeout=3)
+                self.assertEqual(error.exception.code, 503)
+                self.assertIn("Google Chrome is not installed", error.exception.read().decode("utf-8"))
+        finally:
+            server.shutdown()
+            server.server_close()
+            server_thread.join(timeout=3)
 
     def test_local_exit_request_sets_marker_and_stops_runtime(self):
         server = self.kiosk.ThreadingHTTPServer(("127.0.0.1", 0), self.kiosk.DashboardHandler)

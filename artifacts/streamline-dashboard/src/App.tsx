@@ -427,6 +427,8 @@ function Settings({
   const [message, setMessage] = useState('');
   const [wifiMessage, setWifiMessage] = useState('');
   const [openingWifiSettings, setOpeningWifiSettings] = useState(false);
+  const [peacockTestMessage, setPeacockTestMessage] = useState('');
+  const [openingPeacockTest, setOpeningPeacockTest] = useState(false);
   const [remoteControl, setRemoteControl] = useState<RemoteControlInfo | null>(null);
   const [remoteBusy, setRemoteBusy] = useState(false);
   const [remoteMessage, setRemoteMessage] = useState('');
@@ -535,6 +537,27 @@ function Settings({
       setWifiMessage(error instanceof Error ? error.message : 'Could not open the system Wi-Fi settings.');
     } finally {
       setOpeningWifiSettings(false);
+    }
+  };
+
+  const openPeacockTest = async () => {
+    setOpeningPeacockTest(true);
+    setPeacockTestMessage('');
+    try {
+      const response = await fetch('/api/open-peacock-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const result = await response.json() as { accepted?: boolean; message?: string; error?: string };
+      if (!response.ok || result.accepted !== true) {
+        throw new Error(result.error || 'The temporary Chrome test could not be opened.');
+      }
+      setPeacockTestMessage(result.message || 'A temporary Chrome test window opened.');
+    } catch (error) {
+      setPeacockTestMessage(error instanceof Error ? error.message : 'The temporary Chrome test could not be opened.');
+    } finally {
+      setOpeningPeacockTest(false);
     }
   };
 
@@ -669,6 +692,32 @@ function Settings({
             </button>
           )}
           {wifiMessage && <div className="inline-status" role="status" data-testid="status-wifi-result">{wifiMessage}</div>}
+        </section>
+        <section className="settings-panel network-panel reveal delay-2" aria-labelledby="peacock-test-title">
+          <div className="panel-overline">Playback troubleshooting</div>
+          <h2 id="peacock-test-title">Test Peacock in Chrome</h2>
+          <p>This opens a temporary private Google Chrome profile so you can compare playback. Firefox’s saved logins are not shared; the temporary Chrome data is erased when its window closes. Google Chrome must already be installed.</p>
+          {!kiosk || checkingHelper || !status.helperAvailable ? (
+            <div className="unavailable" role="status" data-testid="status-peacock-test-unavailable">
+              <CircleHelp size={15} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+              {!kiosk
+                ? 'The browser test is available only from the locally installed Linux kiosk.'
+                : checkingHelper
+                  ? 'Checking the local kiosk helper…'
+                  : 'The local kiosk helper is unavailable, so the browser test cannot be started.'}
+            </div>
+          ) : (
+            <button
+              className="clear-button"
+              type="button"
+              data-testid="button-open-peacock-test"
+              onClick={openPeacockTest}
+              disabled={openingPeacockTest}
+            >
+              <ArrowUpRight size={16} /> {openingPeacockTest ? 'Opening Chrome…' : 'Open Peacock in Chrome'}
+            </button>
+          )}
+          {peacockTestMessage && <div className="inline-status" role="status" data-testid="status-peacock-test-result">{peacockTestMessage}</div>}
         </section>
         <section className="settings-panel remote-panel reveal delay-2" aria-labelledby="remote-title">
           <div className="panel-overline">Phone remote</div>

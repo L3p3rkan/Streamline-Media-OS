@@ -93,6 +93,8 @@ To upgrade, install a newer `.deb` the same way. To remove Streamline, run `sudo
 7. Use **Power** in the header to open **Power Off** or **Restart**. Choose one action in the confirmation dialog; these controls work only on the local kiosk, not the hosted preview.
 8. To leave the kiosk, open **Power → Exit Streamline**. This closes Streamline, returns to the desktop, and keeps the app closed for all desktop accounts until the computer restarts. Saved Firefox logins are not removed.
 
+For a Peacock playback comparison, open **Settings → Test Peacock in Chrome**. This requires Google Chrome to already be installed; download its official Linux package from [google.com/chrome](https://www.google.com/chrome/) if needed. It opens a temporary private profile; sign in again for the test, then close the Chrome window to erase its browser data. It does not alter Firefox or its saved logins.
+
 ## iPhone remote
 
 The companion app pairs each Streamline PC separately. On the phone, choose **Pair a Streamline PC** and scan that computer's QR code from **Settings → Pair an iPhone**. Select a saved PC to use the trackpad: slide to move the pointer, tap to left-click, and use the Dashboard, Play/Pause, and volume buttons. Use **Settings → Paired phones → Revoke** on the PC to remove a phone's access. Clearing Firefox logins does not change phone pairings.
