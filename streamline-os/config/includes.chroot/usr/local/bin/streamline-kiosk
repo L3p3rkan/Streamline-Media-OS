@@ -40,6 +40,10 @@ PROFILE_ROOT = (
     else LEGACY_PROFILE_ROOT
 )
 ALLOWED_ORIGIN = f"http://{HOST}:{PORT}"
+BOOT_ID_PATH = Path("/proc/sys/kernel/random/boot_id")
+EXIT_MARKER_DIRECTORY = (
+    Path("/run/lock") if Path("/run/lock").is_dir() else Path("/tmp")
+)
 
 
 def _profile_roots() -> tuple[Path, ...]:
@@ -66,6 +70,7 @@ def _configure_firefox_home(profile_root: Path) -> None:
         ),
         'browser.startup.page': 'user_pref("browser.startup.page", 1);',
         'browser.backspace_action': 'user_pref("browser.backspace_action", 0);',
+        'media.eme.enabled': 'user_pref("media.eme.enabled", true);',
     }
     preserved_lines = [
         line
@@ -76,6 +81,49 @@ def _configure_firefox_home(profile_root: Path) -> None:
         "\n".join([*preserved_lines, *managed_preferences.values()]) + "\n",
         encoding="utf-8",
     )
+
+
+def _exit_marker_path(
+    marker_directory: Path = EXIT_MARKER_DIRECTORY,
+    boot_id_path: Path = BOOT_ID_PATH,
+) -> Path:
+    try:
+        boot_id = boot_id_path.read_text(encoding="utf-8").strip()
+    except OSError as error:
+        raise RuntimeError(f"Could not read the current boot ID: {error}") from error
+    if not boot_id:
+        raise RuntimeError("The current boot ID is empty.")
+    return marker_directory / f"streamline-exit-{boot_id}"
+
+
+def _exit_requested_until_reboot(
+    marker_directory: Path = EXIT_MARKER_DIRECTORY,
+    boot_id_path: Path = BOOT_ID_PATH,
+) -> bool:
+    marker = _exit_marker_path(marker_directory, boot_id_path)
+    return marker.is_file() and not marker.is_symlink()
+
+
+def _mark_exit_until_reboot(
+    marker_directory: Path = EXIT_MARKER_DIRECTORY,
+    boot_id_path: Path = BOOT_ID_PATH,
+) -> None:
+    marker = _exit_marker_path(marker_directory, boot_id_path)
+    marker_directory.mkdir(parents=True, exist_ok=True)
+    try:
+        descriptor = os.open(
+            marker,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
+            0o644,
+        )
+    except FileExistsError:
+        if marker.is_file() and not marker.is_symlink():
+            return
+        raise RuntimeError("An invalid exit marker already exists.")
+    try:
+        os.fchmod(descriptor, 0o644)
+    finally:
+        os.close(descriptor)
 
 
 def _wifi_settings_command() -> list[str] | None:
@@ -109,6 +157,7 @@ class KioskRuntime:
     def __init__(self) -> None:
         self.clear_profile = threading.Event()
         self.stop = threading.Event()
+        self.exit_requested = threading.Event()
         self.state_lock = threading.Lock()
         self.clear_error: str | None = None
         self.power_action: str | None = None
@@ -116,6 +165,12 @@ class KioskRuntime:
         self.next_path = "/"
         self.browser: threading.Thread | None = None
         self.browser_process = None
+        self.shutdown_callback = None
+
+    def exit_streamline(self) -> None:
+        self.stop.set()
+        if self.shutdown_callback is not None:
+            self.shutdown_callback()
 
     def execute_power_action(self, action: str) -> None:
         try:
@@ -335,6 +390,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if path not in {
             "/api/clear-login",
             "/api/power-action",
+            "/api/exit-application",
             "/api/open-wifi-settings",
             "/api/remote-pairing/new",
             "/api/remote-pairing/revoke",
@@ -422,6 +478,35 @@ class DashboardHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/exit-application":
+            if payload != {}:
+                self._send_json(400, {"error": "Expected an empty JSON object"})
+                return
+            with runtime.state_lock:
+                if runtime.power_action is not None or runtime.clear_profile.is_set():
+                    self._send_json(409, {"error": "Kiosk maintenance is in progress; try again when it finishes"})
+                    return
+                if runtime.exit_requested.is_set():
+                    self._send_json(409, {"error": "Streamline is already exiting"})
+                    return
+                try:
+                    _mark_exit_until_reboot()
+                except (OSError, RuntimeError) as error:
+                    self._send_json(503, {"error": f"Could not save the exit-until-restart state: {error}"})
+                    return
+                runtime.exit_requested.set()
+            self._send_json(
+                202,
+                {
+                    "accepted": True,
+                    "message": "Streamline will close and stay exited until the computer restarts.",
+                },
+            )
+            timer = threading.Timer(0.75, runtime.exit_streamline)
+            timer.daemon = True
+            timer.start()
+            return
+
         if payload != {}:
             self._send_json(400, {"error": "Expected an empty JSON object"})
             return
@@ -472,10 +557,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    try:
+        if _exit_requested_until_reboot():
+            print("streamline-kiosk: exited by user; it will start again after the next reboot")
+            return
+    except RuntimeError as error:
+        print(f"streamline-kiosk: cannot check exit-until-reboot state: {error}", file=sys.stderr)
+        return
+
     _migrate_profile(LEGACY_PROFILE_ROOT, PROFILE_ROOT)
     PROFILE_ROOT.mkdir(parents=True, exist_ok=True)
     server = ThreadingHTTPServer((HOST, PORT), DashboardHandler)
     server.daemon_threads = True
+    runtime.shutdown_callback = server.shutdown
     remote_server = None
     remote_server_thread = None
     if remote_control is not None and create_remote_server is not None:

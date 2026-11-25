@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CircleHelp, LockKeyhole, Power, QrCode, RotateCcw, Settings2, ShieldCheck, Smartphone, Trash2, TriangleAlert, Wifi } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CircleHelp, LockKeyhole, LogOut, Power, QrCode, RotateCcw, Settings2, ShieldCheck, Smartphone, Trash2, TriangleAlert, Wifi } from 'lucide-react';
 import { Link, Route, Switch, useLocation } from 'wouter';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -191,7 +191,7 @@ function Header() {
   );
 }
 
-type PowerAction = 'poweroff' | 'reboot';
+type PowerAction = 'poweroff' | 'reboot' | 'exit';
 
 function PowerDialog({
   kiosk,
@@ -223,7 +223,7 @@ function PowerDialog({
       <section className="confirm-dialog power-dialog" role="dialog" aria-modal="true" aria-labelledby="power-title" aria-describedby="power-copy" data-testid="dialog-power-options">
         <div className="panel-overline">Computer controls</div>
         <h2 id="power-title">Power options</h2>
-        <p id="power-copy">Power off shuts down this computer. Restart closes the session and starts it again.</p>
+        <p id="power-copy">Power off shuts down the computer. Restart starts it again. Exit Streamline closes the kiosk until the next restart without removing saved logins.</p>
         {!kiosk && (
           <div className="unavailable" role="status">
             Power controls work only on the locally installed Linux kiosk, not in this hosted preview.
@@ -237,6 +237,9 @@ function PowerDialog({
           </button>
           <button type="button" className="poweroff-button" onClick={() => onAction('poweroff')} disabled={!kiosk || busy}>
             <Power size={15} /> Power Off
+          </button>
+          <button type="button" className="restart-button" data-testid="button-dialog-exit" onClick={() => onAction('exit')} disabled={!kiosk || busy}>
+            <LogOut size={15} /> Exit Streamline
           </button>
         </div>
       </section>
@@ -256,20 +259,21 @@ function PowerControls() {
   };
 
   const requestPowerAction = async (action: PowerAction) => {
-    const label = action === 'poweroff' ? 'Power off' : 'Restart';
+    const label = action === 'poweroff' ? 'Power off' : action === 'reboot' ? 'Restart' : 'Exit Streamline';
+    const exiting = action === 'exit';
     setPendingAction(action);
     setMessage(`Requesting ${label.toLowerCase()}…`);
     try {
-      const response = await fetch('/api/power-action', {
+      const response = await fetch(exiting ? '/api/exit-application' : '/api/power-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify(exiting ? {} : { action }),
       });
       const result = await response.json() as { accepted?: boolean; error?: string };
       if (!response.ok || result.accepted !== true) {
         throw new Error(result.error || `The ${label.toLowerCase()} request was not accepted.`);
       }
-      setMessage(`${label} request accepted. Waiting for the computer…`);
+      setMessage(exiting ? 'Exit accepted. Closing Streamline…' : `${label} request accepted. Waiting for the computer…`);
 
       for (let attempt = 0; attempt < 8; attempt += 1) {
         await new Promise((resolve) => window.setTimeout(resolve, 750));
@@ -282,12 +286,16 @@ function PowerControls() {
             return;
           }
         } catch {
-          setMessage(`The computer stopped responding after the ${label.toLowerCase()} request. It may be shutting down.`);
+          setMessage(exiting
+            ? 'Streamline closed. It will start again when the computer restarts.'
+            : `The computer stopped responding after the ${label.toLowerCase()} request. It may be shutting down.`);
           setPendingAction(null);
           return;
         }
       }
-      setMessage(`${label} was accepted, but the computer is still responding. Check its power permissions or shutdown blockers.`);
+      setMessage(exiting
+        ? 'The exit was accepted, but Streamline is still responding. Try the exit action again.'
+        : `${label} was accepted, but the computer is still responding. Check its power permissions or shutdown blockers.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : `Could not request ${label.toLowerCase()}.`);
     } finally {

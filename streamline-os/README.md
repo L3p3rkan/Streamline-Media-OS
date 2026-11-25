@@ -70,12 +70,12 @@ pnpm install --frozen-lockfile
 ./streamline-os/build-ubuntu-package.sh
 ```
 
-The package and its SHA-256 checksum are written to `streamline-os/packages/`. To produce a release download, push a version tag such as `v0.1.6`; GitHub Actions builds the package and attaches it to that release. Because this source repository is private, IT must download the package and share it through an approved university channel or USB drive.
+The package and its SHA-256 checksum are written to `streamline-os/packages/`. To produce a release download, push a version tag such as `v0.1.7`; GitHub Actions builds the package and attaches it to that release. Because this source repository is private, IT must download the package and share it through an approved university channel or USB drive.
 
 On the student computer, download the `.deb` and open it with Ubuntu's software installer. Alternatively, install it from the folder containing the package:
 
 ```sh
-sudo apt install ./streamline-kiosk_0.1.6_amd64.deb
+sudo apt install ./streamline-kiosk_0.1.7_amd64.deb
 ```
 
 Sign out and back in, or reboot, to start Streamline and apply the local input-device permission. The package does not enable automatic login; configure that separately only if appropriate for the student's private device. It installs a system-wide desktop autostart entry, so Streamline starts for desktop users on that computer.
@@ -86,11 +86,12 @@ To upgrade, install a newer `.deb` the same way. To remove Streamline, run `sudo
 
 1. Boot the USB image on the EliteDesk.
 2. From the dashboard, open **Settings → Wi-Fi setup**. This opens the system Wi-Fi panel, where NetworkManager can join home or university networks, including enterprise sign-in and certificate options. Credentials are stored by NetworkManager, not by Streamline.
-3. Open a provider from the Streamline dashboard and sign in on its official site.
+3. Open a provider from the Streamline dashboard and sign in on its official site. Firefox's DRM-controlled content setting is enabled in the kiosk profile by default.
 4. If desired, let Firefox save the sign-in in its local password manager. Consider setting a Firefox Primary Password and enabling full-disk encryption when installing the system.
 5. Use **Settings → Clear Login** to erase this device's Streamline Firefox profile and restart with a clean one.
 6. Use **Settings → Pair an iPhone** to display a one-time QR code, then scan it with the Streamline Remote iPhone app. Pairing codes expire after five minutes and can be refreshed.
 7. Use **Power** in the header to open **Power Off** or **Restart**. Choose one action in the confirmation dialog; these controls work only on the local kiosk, not the hosted preview.
+8. To leave the kiosk, open **Power → Exit Streamline**. This closes Streamline, returns to the desktop, and keeps the app closed for all desktop accounts until the computer restarts. Saved Firefox logins are not removed.
 
 ## iPhone remote
 
