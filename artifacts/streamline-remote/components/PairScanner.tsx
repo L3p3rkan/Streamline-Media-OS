@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -27,6 +27,10 @@ export function PairScanner({ visible, busy, error, onScan, onClose }: PairScann
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [hasScanned, setHasScanned] = useState(false);
+
+  useEffect(() => {
+    if (visible) setHasScanned(false);
+  }, [visible]);
 
   const handleScan = ({ data }: { data: string }) => {
     if (hasScanned || busy) return;
@@ -76,7 +80,12 @@ export function PairScanner({ visible, busy, error, onScan, onClose }: PairScann
                 QR pairing uses the iPhone camera and secure device storage.
               </Text>
             </View>
-          ) : permission?.granted ? (
+          ) : permission === null ? (
+            <View style={styles.permissionState}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.copy, { color: colors.mutedForeground }]}>Checking camera access…</Text>
+            </View>
+          ) : permission.granted ? (
             <>
               <CameraView
                 style={StyleSheet.absoluteFill}
@@ -141,7 +150,7 @@ export function PairScanner({ visible, busy, error, onScan, onClose }: PairScann
           </View>
         ) : (
           <Text style={[styles.networkNote, { color: colors.mutedForeground }]}>
-            Both devices must be on the same Wi-Fi. Some campus networks block device-to-device connections.
+            Both devices need the same Wi-Fi. Campus networks may block nearby devices. Traffic is not end-to-end encrypted, so use a network approved for this.
           </Text>
         )}
       </View>

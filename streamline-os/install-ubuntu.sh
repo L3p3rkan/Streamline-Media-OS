@@ -31,7 +31,7 @@ if [[ ! -s "$STAGED_WEB/index.html" ]]; then
   echo "Dashboard bundle is missing. From the project root, run ./streamline-os/build-dashboard.sh first." >&2
   exit 1
 fi
-if [[ ! -x "$KIOSK_SOURCE" || ! -f "$DESKTOP_SOURCE" ]]; then
+if [[ ! -x "$KIOSK_SOURCE" || ! -f "$REMOTE_SOURCE" || ! -f "$DESKTOP_SOURCE" || ! -f "$UDEV_SOURCE" || ! -f "$MODULES_SOURCE" ]]; then
   echo "Kiosk launcher files are missing from $SCRIPT_DIR/config/includes.chroot." >&2
   exit 1
 fi
@@ -41,6 +41,10 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 if ! python3 -c 'import evdev' >/dev/null 2>&1; then
   echo "Linux input support is required. Install it with: sudo apt install python3-evdev" >&2
+  exit 1
+fi
+if ! command -v ip >/dev/null 2>&1; then
+  echo "Local network discovery requires iproute2. Install it with: sudo apt install iproute2" >&2
   exit 1
 fi
 if ! command -v firefox-esr >/dev/null 2>&1 && ! command -v firefox >/dev/null 2>&1; then

@@ -13,6 +13,7 @@
       "backgroundColor": "#00416B"
     },
     "ios": {
+      "bundleIdentifier": "com.streamline.media.remote",
       "supportsTablet": false,
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Streamline Remote connects to paired Streamline PCs on your local Wi-Fi.",
@@ -21,7 +22,9 @@
         }
       }
     },
-    "android": {},
+    "android": {
+      "package": "com.streamline.media.remote"
+    },
     "web": {
       "favicon": "./assets/images/icon.png",
       "output": "static"

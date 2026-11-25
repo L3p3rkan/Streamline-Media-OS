@@ -12,6 +12,7 @@ import math
 import os
 import secrets
 import socket
+import subprocess
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -36,19 +37,42 @@ class RemoteControlError(Exception):
         self.status = status
 
 
-def _is_lan_client(address: str) -> bool:
+def _read_private_networks() -> tuple[ipaddress.IPv4Network, ...]:
     try:
-        parsed = ipaddress.ip_address(address)
-    except ValueError:
-        return False
-    return (
-        parsed.version == 4
-        and parsed.is_private
-        and not parsed.is_loopback
-        and not parsed.is_link_local
-        and not parsed.is_multicast
-        and not parsed.is_unspecified
-    )
+        result = subprocess.run(
+            ["ip", "-j", "-4", "address", "show", "scope", "global"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        interfaces = json.loads(result.stdout)
+    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError):
+        return ()
+
+    networks: set[ipaddress.IPv4Network] = set()
+    if not isinstance(interfaces, list):
+        return ()
+    for interface in interfaces:
+        if not isinstance(interface, dict):
+            continue
+        addresses = interface.get("addr_info")
+        if not isinstance(addresses, list):
+            continue
+        for address in addresses:
+            if not isinstance(address, dict) or address.get("family") != "inet":
+                continue
+            local = address.get("local")
+            prefix = address.get("prefixlen")
+            if not isinstance(local, str) or not isinstance(prefix, int):
+                continue
+            try:
+                parsed = ipaddress.ip_interface(f"{local}/{prefix}")
+            except ValueError:
+                continue
+            if parsed.ip.is_private and not parsed.ip.is_link_local:
+                networks.add(parsed.network)
+    return tuple(networks)
 
 
 def _default_ipv4_address() -> str:
@@ -58,8 +82,9 @@ def _default_ipv4_address() -> str:
         address = probe.getsockname()[0]
     finally:
         probe.close()
-    if not _is_lan_client(address):
-        raise RuntimeError("No private IPv4 network address was found.")
+    parsed = ipaddress.ip_address(address)
+    if not parsed.is_private or parsed.is_loopback or parsed.is_link_local:
+        raise OSError("No private IPv4 network address was found.")
     return address
 
 
@@ -79,12 +104,16 @@ class RemoteControl:
         storage_path: Path | None = None,
         input_factory=None,
         event_codes=None,
+        allowed_networks: tuple[ipaddress.IPv4Network, ...] | None = None,
     ) -> None:
         self.storage_path = storage_path or (
             Path.home() / ".config" / "streamline" / "remote-pairings.json"
         )
         self.input_factory = input_factory
         self.event_codes = event_codes
+        self._allowed_networks_override = allowed_networks
+        self._network_cache: tuple[ipaddress.IPv4Network, ...] = ()
+        self._network_cache_expires = 0.0
         self._input = None
         self._pairing_lock = threading.RLock()
         self._pairings: dict[str, dict[str, object]] = {}
@@ -171,6 +200,13 @@ class RemoteControl:
                     "inputReady": self.input_ready(),
                     "pairedDevices": self.list_pairings(),
                 }
+            if not self.is_lan_client(address):
+                return {
+                    "available": False,
+                    "error": "Could not verify this PC's private Wi-Fi subnet. Check that iproute2 is installed and the network is connected.",
+                    "inputReady": self.input_ready(),
+                    "pairedDevices": self.list_pairings(),
+                }
 
             return {
                 "available": self.server_error is None and self.storage_error is None,
@@ -182,6 +218,24 @@ class RemoteControl:
                 "inputReady": self.input_ready(),
                 "pairedDevices": self.list_pairings(),
             }
+
+    def is_lan_client(self, address: str) -> bool:
+        try:
+            parsed = ipaddress.ip_address(address)
+        except ValueError:
+            return False
+        if parsed.version != 4 or parsed.is_multicast or parsed.is_unspecified or parsed.is_link_local:
+            return False
+
+        if self._allowed_networks_override is not None:
+            networks = self._allowed_networks_override
+        else:
+            now = time.monotonic()
+            if now >= self._network_cache_expires:
+                self._network_cache = _read_private_networks()
+                self._network_cache_expires = now + 10
+            networks = self._network_cache
+        return any(parsed in network for network in networks)
 
     def refresh_pairing_code(self) -> dict[str, object]:
         with self._pairing_lock:
@@ -204,7 +258,7 @@ class RemoteControl:
             ]
 
     def pair(self, peer_address: str, code: object, client_name: object) -> dict[str, str]:
-        if not _is_lan_client(peer_address):
+        if not self.is_lan_client(peer_address):
             raise RemoteControlError("Pairing is available only from a private local network.", 403)
         if self.storage_error:
             raise RemoteControlError(self.storage_error, 503)
@@ -284,10 +338,11 @@ class RemoteControl:
             )
             if match is None:
                 return False
-            del self._pairings[match]
+            removed = self._pairings.pop(match)
             try:
                 self._save_pairings()
             except OSError as error:
+                self._pairings[match] = removed
                 self.storage_error = f"Could not save phone pairing changes: {error}"
                 raise RemoteControlError(self.storage_error, 503) from error
             return True
@@ -295,10 +350,11 @@ class RemoteControl:
     def unpair_token(self, token: str) -> None:
         token_hash, _entry = self._authorized_pairing(token)
         with self._pairing_lock:
-            del self._pairings[token_hash]
+            removed = self._pairings.pop(token_hash)
             try:
                 self._save_pairings()
             except OSError as error:
+                self._pairings[token_hash] = removed
                 self.storage_error = f"Could not save phone pairing changes: {error}"
                 raise RemoteControlError(self.storage_error, 503) from error
 
@@ -466,7 +522,7 @@ def _make_handler(control: RemoteControl):
 
         def _require_lan(self) -> None:
             peer = self.client_address[0]
-            if not _is_lan_client(peer):
+            if not control.is_lan_client(peer):
                 raise RemoteControlError("This service accepts connections only from a private local network.", 403)
 
         def _bearer_token(self) -> str:
@@ -632,9 +688,13 @@ def _make_handler(control: RemoteControl):
     return RemoteControlHandler
 
 
-def create_remote_server(control: RemoteControl) -> ThreadingHTTPServer:
+def create_remote_server(
+    control: RemoteControl,
+    host: str = "0.0.0.0",
+    port: int = REMOTE_PORT,
+) -> ThreadingHTTPServer:
     class LocalOnlyServer(ThreadingHTTPServer):
         allow_reuse_address = True
         daemon_threads = True
 
-    return LocalOnlyServer(("0.0.0.0", REMOTE_PORT), _make_handler(control))
+    return LocalOnlyServer((host, port), _make_handler(control))

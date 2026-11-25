@@ -80,7 +80,7 @@ sudo apt install ./streamline-kiosk_0.1.3_amd64.deb
 
 Sign out and back in, or reboot, to start Streamline and apply the local input-device permission. The package does not enable automatic login; configure that separately only if appropriate for the student's private device. It installs a system-wide desktop autostart entry, so Streamline starts for desktop users on that computer.
 
-To upgrade, install a newer `.deb` the same way. To remove Streamline, run `sudo apt remove streamline-kiosk`; this removes the app and its autostart entry but **does not erase saved Firefox logins or profiles**. Those remain in each user's home folder unless they separately use **Settings → Clear Login**.
+To upgrade, install a newer `.deb` the same way. To remove Streamline, run `sudo apt remove streamline-kiosk`; this removes the app and its autostart entry but **does not erase saved Firefox logins, profiles, or paired-phone records**. Use **Settings → Clear Login** for browser data and revoke phones in **Settings → Paired phones** before transferring the computer.
 
 ## First use
 
@@ -95,6 +95,8 @@ To upgrade, install a newer `.deb` the same way. To remove Streamline, run `sudo
 ## iPhone remote
 
 The companion app pairs each Streamline PC separately. On the phone, choose **Pair a Streamline PC** and scan that computer's QR code from **Settings → Pair an iPhone**. Select a saved PC to use the trackpad: slide to move the pointer, tap to left-click, and use the Dashboard, Play/Pause, and volume buttons. Use **Settings → Paired phones → Revoke** on the PC to remove a phone's access. Clearing Firefox logins does not change phone pairings.
+
+The project is currently an Expo development app, not an App Store release. Before publishing, the app's bundle identifier must be replaced with one owned by the publisher's Apple developer account.
 
 The app stores its random control token in iOS secure storage. The PC saves only a hash of each token. The input helper accepts a small allowlist of pointer, media, and Firefox Home actions; it does not accept shell commands, text entry, power actions, or streaming-service passwords. Control requests are limited to private local-network addresses and are not relayed through Streamline.
 

@@ -696,7 +696,7 @@ function Settings({
                     aria-label={`One-time pairing code for ${remoteControl.computerName || 'this PC'}`}
                   />
                 </div>
-                <div className="remote-qr-caption"><QrCode size={14} /> One-time code · refreshes after pairing</div>
+                <div className="remote-qr-caption"><QrCode size={14} /> One-time code · expires in 5 minutes</div>
               </div>
               <div className="remote-details">
                 <div className={`remote-input-state ${remoteControl.inputReady ? 'ready' : 'not-ready'}`} role="status">
@@ -710,7 +710,7 @@ function Settings({
                 </div>
                 <p className="remote-network-note">
                   Keep both devices on the same trusted Wi-Fi. Some university networks block device-to-device traffic.
-                  Control traffic stays on your local network; it is not relayed through Streamline.
+                  Control traffic stays on your local network; it is not relayed through Streamline. The session is not end-to-end encrypted, so use only a network approved for local control.
                 </p>
                 <button
                   className="clear-button remote-refresh"

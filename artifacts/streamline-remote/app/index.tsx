@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { PairScanner } from '@/components/PairScanner';
@@ -81,7 +82,7 @@ function PairedDeviceCard({
         </View>
         <View style={styles.deviceText}>
           <Text numberOfLines={1} style={[styles.deviceName, { color: colors.foreground }]}>{device.name}</Text>
-          <Text style={[styles.deviceSubtitle, { color: colors.mutedForeground }]}>Paired PC · same Wi-Fi</Text>
+          <Text style={[styles.deviceSubtitle, { color: colors.mutedForeground }]}>Paired · same Wi-Fi required</Text>
         </View>
       </View>
       <View style={styles.deviceActions}>
@@ -121,16 +122,33 @@ function RemoteScreen({
 }) {
   const colors = useColors();
   const [connected, setConnected] = useState(false);
-  const [inputReady, setInputReady] = useState(false);
   const [busyAction, setBusyAction] = useState<RemoteAction | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const socketRef = useRef<WebSocket | null>(null);
+  const statusQuery = useQuery({
+    queryKey: ['remote-status', device.id],
+    queryFn: () => getRemoteStatus(device),
+    enabled: connected,
+    retry: 1,
+    refetchInterval: connected ? 30_000 : false,
+  });
+  const inputReady = statusQuery.data?.inputReady === true;
+  const displayedMessage =
+    statusMessage ||
+    (connected && statusQuery.isPending
+      ? 'Checking input access on this PC…'
+      : statusQuery.error
+        ? statusQuery.error instanceof Error
+          ? statusQuery.error.message
+          : 'The PC did not confirm its control status.'
+        : connected && !inputReady
+          ? 'Input access is not ready. Install the Streamline update, then sign out and back in.'
+          : '');
 
   useEffect(() => {
     let mounted = true;
     setConnected(false);
-    setInputReady(false);
     setStatusMessage('Connecting to your PC…');
     const socket = new WebSocket(remoteSocketUrl(device));
     socketRef.current = socket;
@@ -138,18 +156,6 @@ function RemoteScreen({
       if (!mounted) return;
       setConnected(true);
       setStatusMessage('');
-      void getRemoteStatus(device)
-        .then((status) => {
-          if (mounted) {
-            setInputReady(status.inputReady);
-            if (!status.inputReady) {
-              setStatusMessage('Input access is not ready on this PC. Install the Streamline remote-control update and sign out and back in.');
-            }
-          }
-        })
-        .catch(() => {
-          if (mounted) setStatusMessage('The PC did not confirm its control status.');
-        });
     };
     socket.onmessage = (event) => {
       if (typeof event.data !== 'string') return;
@@ -244,9 +250,9 @@ function RemoteScreen({
         </Pressable>
       </View>
 
-      {statusMessage ? (
+      {displayedMessage ? (
         <View style={[styles.statusBanner, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.statusText, { color: colors.mutedForeground }]}>{statusMessage}</Text>
+          <Text style={[styles.statusText, { color: colors.mutedForeground }]}>{displayedMessage}</Text>
         </View>
       ) : null}
 
@@ -345,7 +351,7 @@ export default function RemoteHomeScreen() {
   const forgetDevice = (device: PairedDevice) => {
     Alert.alert(
       `Forget ${device.name}?`,
-      'This removes its saved access token from this iPhone. You can pair it again from that PC’s Settings.',
+      'This removes its saved access token from this iPhone. If the PC is offline, revoke its saved phone entry from that PC’s Settings too.',
       [
         { text: 'Cancel', style: 'cancel' },
         {

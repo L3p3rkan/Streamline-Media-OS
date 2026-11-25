@@ -15,6 +15,7 @@ fonts-noto-color-emoji
 network-manager
 network-manager-gnome
 wpasupplicant
+iproute2
 ca-certificates
 firmware-iwlwifi
 
