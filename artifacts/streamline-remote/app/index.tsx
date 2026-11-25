@@ -164,6 +164,7 @@ function RemoteScreen({
         if (!mounted) return;
         retryDelay = 1_000;
         lastPongAt = Date.now();
+        console.info('[Streamline Remote] WebSocket connected');
         setConnected(true);
         setStatusMessage('');
       };
@@ -184,13 +185,30 @@ function RemoteScreen({
         if (!mounted) return;
         setConnected(false);
         setStatusMessage('Connection lost. Reconnecting…');
-        socket.close();
+        console.warn('[Streamline Remote] WebSocket error');
+        socket.close(4001, 'socket_error');
       };
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (!mounted) return;
         setConnected(false);
+        const secondsSincePong = Math.round((Date.now() - lastPongAt) / 1_000);
+        const reason = event.reason || (event.code === 1006 ? 'network_interruption' : 'no_reason');
+        console.warn('[Streamline Remote] WebSocket closed', {
+          code: event.code,
+          reason,
+          wasClean: event.wasClean,
+          secondsSincePong,
+        });
+        if (event.code === 1008 && event.reason === 'pointer_rate_limit') {
+          setStatusMessage('Trackpad updates were limited. Reconnecting…');
+        } else if (event.code === 4000 && event.reason === 'heartbeat_timeout') {
+          setStatusMessage('The PC did not answer its heartbeat. Reconnecting…');
+        } else if (event.code === 1006) {
+          setStatusMessage('Network interruption. Reconnecting…');
+        } else {
+          setStatusMessage(`Connection closed (${reason}). Reconnecting…`);
+        }
         if (reconnectTimer) return;
-        setStatusMessage('Connection lost. Reconnecting…');
         const delay = retryDelay;
         retryDelay = Math.min(retryDelay * 2, 30_000);
         reconnectTimer = setTimeout(() => {
@@ -205,13 +223,15 @@ function RemoteScreen({
       const socket = socketRef.current;
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
       if (Date.now() - lastPongAt > 45_000) {
-        socket.close();
+        console.warn('[Streamline Remote] Heartbeat timed out');
+        socket.close(4000, 'heartbeat_timeout');
         return;
       }
       try {
         socket.send(JSON.stringify({ type: 'ping' }));
       } catch {
-        socket.close();
+        console.warn('[Streamline Remote] Heartbeat send failed');
+        socket.close(4001, 'heartbeat_send_failed');
       }
     }, 15_000);
 
@@ -224,7 +244,7 @@ function RemoteScreen({
       wasBackgrounded = false;
       const socket = socketRef.current;
       if (socket && socket.readyState !== WebSocket.CLOSED && socket.readyState !== WebSocket.CLOSING) {
-        socket.close(1000, 'App resumed');
+        socket.close(1000, 'app_resumed');
       } else {
         if (reconnectTimer) {
           clearTimeout(reconnectTimer);
@@ -254,7 +274,12 @@ function RemoteScreen({
   const sendMove = useCallback((dx: number, dy: number) => {
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
-    socket.send(JSON.stringify({ type: 'move', dx, dy }));
+    try {
+      socket.send(JSON.stringify({ type: 'move', dx, dy }));
+    } catch {
+      console.warn('[Streamline Remote] Pointer send failed');
+      socket.close(4001, 'pointer_send_failed');
+    }
   }, []);
 
   const runAction = useCallback(async (action: Exclude<RemoteAction, 'unpair'>) => {

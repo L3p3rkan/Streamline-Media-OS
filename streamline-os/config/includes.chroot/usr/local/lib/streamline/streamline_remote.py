@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import logging
 import math
 import os
 import secrets
@@ -29,6 +30,7 @@ MAX_POINTER_EVENTS_PER_SECOND = 100
 MAX_POINTER_DELTA = 120
 ALLOWED_ACTIONS = {"click", "home", "playPause", "volumeUp", "volumeDown"}
 WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+LOGGER = logging.getLogger("streamline.remote")
 
 
 class RemoteControlError(Exception):
@@ -601,7 +603,13 @@ def _make_handler(control: RemoteControl):
                         event_count = 0
                     event_count += 1
                     if event_count > MAX_POINTER_EVENTS_PER_SECOND:
-                        raise ConnectionError("Pointer event rate limit exceeded.")
+                        LOGGER.warning("Remote input closed: pointer rate limit exceeded.")
+                        _send_ws_frame(
+                            self.connection,
+                            0x8,
+                            (1008).to_bytes(2, "big") + b"pointer_rate_limit",
+                        )
+                        return
                     if (
                         not isinstance(message, dict)
                         or set(message) != {"type", "dx", "dy"}
@@ -617,7 +625,9 @@ def _make_handler(control: RemoteControl):
                             json.dumps({"error": str(error)}).encode("utf-8"),
                         )
                         return
-            except (ConnectionError, OSError, TimeoutError, ValueError):
+            except (ConnectionError, OSError, TimeoutError, ValueError) as error:
+                if str(error) != "WebSocket peer disconnected.":
+                    LOGGER.warning("Remote input session ended: %s", error)
                 return
             finally:
                 self.close_connection = True

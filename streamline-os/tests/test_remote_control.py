@@ -27,6 +27,41 @@ assert SPEC.loader is not None
 SPEC.loader.exec_module(REMOTE)
 
 
+def read_exact(client, size):
+    content = bytearray()
+    while len(content) < size:
+        chunk = client.recv(size - len(content))
+        if not chunk:
+            raise ConnectionError("WebSocket closed before the expected response.")
+        content.extend(chunk)
+    return bytes(content)
+
+
+def open_websocket(server, token):
+    client = socket.create_connection(("127.0.0.1", server.server_address[1]), timeout=3)
+    client.settimeout(3)
+    key = base64.b64encode(b"0123456789abcdef").decode("ascii")
+    client.sendall(
+        (
+            f"GET /api/remote-input?token={token} HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{server.server_address[1]}\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\n"
+            "Sec-WebSocket-Version: 13\r\n\r\n"
+        ).encode("ascii")
+    )
+    handshake = bytearray()
+    while b"\r\n\r\n" not in handshake:
+        handshake.extend(client.recv(1024))
+    return client, bytes(handshake)
+
+
+def send_masked_text(client, payload, mask):
+    masked_payload = bytes(value ^ mask[index % 4] for index, value in enumerate(payload))
+    client.sendall(bytes((0x81, 0x80 | len(payload))) + mask + masked_payload)
+
+
 class FakeInput:
     def __init__(self):
         self.events = []
@@ -199,47 +234,57 @@ class RemoteControlTests(unittest.TestCase):
             server = REMOTE.create_remote_server(control, host="127.0.0.1", port=0)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
-            client = socket.create_connection(("127.0.0.1", server.server_address[1]), timeout=3)
-            client.settimeout(3)
-
-            def read_exact(size):
-                content = bytearray()
-                while len(content) < size:
-                    chunk = client.recv(size - len(content))
-                    if not chunk:
-                        raise ConnectionError("WebSocket closed before the expected response.")
-                    content.extend(chunk)
-                return bytes(content)
+            client = None
 
             try:
-                key = base64.b64encode(b"0123456789abcdef").decode("ascii")
-                client.sendall(
-                    (
-                        f"GET /api/remote-input?token={paired['token']} HTTP/1.1\r\n"
-                        f"Host: 127.0.0.1:{server.server_address[1]}\r\n"
-                        "Upgrade: websocket\r\n"
-                        "Connection: Upgrade\r\n"
-                        f"Sec-WebSocket-Key: {key}\r\n"
-                        "Sec-WebSocket-Version: 13\r\n\r\n"
-                    ).encode("ascii")
-                )
-                handshake = bytearray()
-                while b"\r\n\r\n" not in handshake:
-                    handshake.extend(client.recv(1024))
+                client, handshake = open_websocket(server, paired["token"])
                 self.assertIn(b"101 Switching Protocols", handshake)
 
                 payload = b'{"type":"ping"}'
-                mask = b"\x11\x22\x33\x44"
-                masked_payload = bytes(value ^ mask[index % 4] for index, value in enumerate(payload))
-                client.sendall(bytes((0x81, 0x80 | len(payload))) + mask + masked_payload)
+                send_masked_text(client, payload, b"\x11\x22\x33\x44")
 
-                first, second = read_exact(2)
+                first, second = read_exact(client, 2)
                 self.assertEqual(first & 0x0F, 0x1)
                 length = second & 0x7F
-                response = json.loads(read_exact(length))
+                response = json.loads(read_exact(client, length))
                 self.assertEqual(response, {"type": "pong"})
             finally:
-                client.close()
+                if client:
+                    client.close()
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=3)
+                control.close()
+
+    def test_websocket_rate_limit_sends_diagnostic_close_code(self):
+        with tempfile.TemporaryDirectory() as directory:
+            control, _fake_input = self.make_control(directory)
+            paired = control.pair("127.0.0.1", control._pairing_code, "Test iPhone")
+            server = REMOTE.create_remote_server(control, host="127.0.0.1", port=0)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            client = None
+            previous_limit = REMOTE.MAX_POINTER_EVENTS_PER_SECOND
+            REMOTE.MAX_POINTER_EVENTS_PER_SECOND = 2
+
+            try:
+                client, handshake = open_websocket(server, paired["token"])
+                self.assertIn(b"101 Switching Protocols", handshake)
+
+                for index in range(3):
+                    payload = json.dumps({"type": "move", "dx": 1, "dy": 0}).encode("utf-8")
+                    send_masked_text(client, payload, bytes((index + 1, 2, 3, 4)))
+
+                first, second = read_exact(client, 2)
+                self.assertEqual(first & 0x0F, 0x8)
+                length = second & 0x7F
+                close_payload = read_exact(client, length)
+                self.assertEqual(int.from_bytes(close_payload[:2], "big"), 1008)
+                self.assertEqual(close_payload[2:].decode("utf-8"), "pointer_rate_limit")
+            finally:
+                REMOTE.MAX_POINTER_EVENTS_PER_SECOND = previous_limit
+                if client:
+                    client.close()
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=3)
