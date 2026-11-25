@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/streamline-remote/"
+title = "Streamline Remote"
+description = "A private iPhone remote for pairing with Streamline PCs on the same Wi-Fi, controlling the pointer, media playback, volume, and returning Firefox to the dashboard."
+version = "1.0.0"
+id = "artifacts/streamline-remote"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/streamline-remote/" ]
+localPort = 19024
+
+[services.development]
+run = "pnpm --filter @workspace/streamline-remote run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/streamline-remote", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/streamline-remote", "run", "serve" ]
+
+[services.env]
+PORT = "19024"
+BASE_PATH = "/streamline-remote/"

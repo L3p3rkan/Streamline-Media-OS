@@ -1,9 +1,21 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CircleHelp, LockKeyhole, Power, RotateCcw, Settings2, ShieldCheck, TriangleAlert, Wifi } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpRight, CircleHelp, LockKeyhole, Power, QrCode, RotateCcw, Settings2, ShieldCheck, Smartphone, Trash2, TriangleAlert, Wifi } from 'lucide-react';
 import { Link, Route, Switch, useLocation } from 'wouter';
+import { QRCodeSVG } from 'qrcode.react';
 
 type StreamingService = { id: string; name: string; url: string; category: string };
 type KioskStatus = { helperAvailable: boolean; clearing: boolean; clearError?: string | null; wifiSettingsAvailable?: boolean };
+type RemotePairedDevice = { deviceId: string; name: string; createdAt: number };
+type RemoteControlInfo = {
+  available: boolean;
+  error?: string | null;
+  url?: string;
+  code?: string;
+  expiresAt?: number;
+  computerName?: string;
+  inputReady: boolean;
+  pairedDevices: RemotePairedDevice[];
+};
 
 const services: StreamingService[] = [
   { id: 'netflix', name: 'Netflix', url: 'https://www.netflix.com/', category: 'Series & films' },
@@ -407,6 +419,9 @@ function Settings({
   const [message, setMessage] = useState('');
   const [wifiMessage, setWifiMessage] = useState('');
   const [openingWifiSettings, setOpeningWifiSettings] = useState(false);
+  const [remoteControl, setRemoteControl] = useState<RemoteControlInfo | null>(null);
+  const [remoteBusy, setRemoteBusy] = useState(false);
+  const [remoteMessage, setRemoteMessage] = useState('');
   const kiosk = isKioskOrigin();
 
   useEffect(() => {
@@ -437,6 +452,39 @@ function Settings({
       .finally(() => setCheckingHelper(false));
     return () => controller.abort();
   }, [kiosk]);
+
+  const refreshRemoteControl = useCallback(async () => {
+    if (!kiosk) return;
+    try {
+      const response = await fetch('/api/remote-control', { cache: 'no-store' });
+      const result = await response.json() as Partial<RemoteControlInfo>;
+      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'Remote control is unavailable.');
+      setRemoteControl({
+        available: result.available === true,
+        error: typeof result.error === 'string' ? result.error : null,
+        url: typeof result.url === 'string' ? result.url : undefined,
+        code: typeof result.code === 'string' ? result.code : undefined,
+        expiresAt: typeof result.expiresAt === 'number' ? result.expiresAt : undefined,
+        computerName: typeof result.computerName === 'string' ? result.computerName : undefined,
+        inputReady: result.inputReady === true,
+        pairedDevices: Array.isArray(result.pairedDevices) ? result.pairedDevices : [],
+      });
+    } catch (error) {
+      setRemoteControl({
+        available: false,
+        error: error instanceof Error ? error.message : 'Remote control is unavailable.',
+        inputReady: false,
+        pairedDevices: [],
+      });
+    }
+  }, [kiosk]);
+
+  useEffect(() => {
+    if (!kiosk) return;
+    void refreshRemoteControl();
+    const timer = window.setInterval(() => void refreshRemoteControl(), 4000);
+    return () => window.clearInterval(timer);
+  }, [kiosk, refreshRemoteControl]);
 
   const clearLogin = async () => {
     setStatus((current) => ({ ...current, clearing: true }));
@@ -481,6 +529,64 @@ function Settings({
       setOpeningWifiSettings(false);
     }
   };
+
+  const createRemotePairingCode = async () => {
+    setRemoteBusy(true);
+    setRemoteMessage('');
+    try {
+      const response = await fetch('/api/remote-pairing/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const result = await response.json() as Partial<RemoteControlInfo> & { error?: string };
+      if (!response.ok) throw new Error(result.error || 'A new pairing code could not be created.');
+      setRemoteControl({
+        available: result.available === true,
+        error: typeof result.error === 'string' ? result.error : null,
+        url: typeof result.url === 'string' ? result.url : undefined,
+        code: typeof result.code === 'string' ? result.code : undefined,
+        expiresAt: typeof result.expiresAt === 'number' ? result.expiresAt : undefined,
+        computerName: typeof result.computerName === 'string' ? result.computerName : undefined,
+        inputReady: result.inputReady === true,
+        pairedDevices: Array.isArray(result.pairedDevices) ? result.pairedDevices : [],
+      });
+      setRemoteMessage('A new one-time pairing code is ready.');
+    } catch (error) {
+      setRemoteMessage(error instanceof Error ? error.message : 'A new pairing code could not be created.');
+    } finally {
+      setRemoteBusy(false);
+    }
+  };
+
+  const revokeRemoteDevice = async (deviceId: string) => {
+    setRemoteBusy(true);
+    setRemoteMessage('');
+    try {
+      const response = await fetch('/api/remote-pairing/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || 'That phone could not be unpaired.');
+      setRemoteMessage('Phone access revoked.');
+      await refreshRemoteControl();
+    } catch (error) {
+      setRemoteMessage(error instanceof Error ? error.message : 'That phone could not be unpaired.');
+    } finally {
+      setRemoteBusy(false);
+    }
+  };
+
+  const remoteQrValue = remoteControl?.url && remoteControl.code
+    ? JSON.stringify({
+        type: 'streamline-pair',
+        url: remoteControl.url,
+        code: remoteControl.code,
+        name: remoteControl.computerName || 'Streamline PC',
+      })
+    : '';
 
   return (
     <div className="app-shell">
@@ -555,6 +661,100 @@ function Settings({
             </button>
           )}
           {wifiMessage && <div className="inline-status" role="status" data-testid="status-wifi-result">{wifiMessage}</div>}
+        </section>
+        <section className="settings-panel remote-panel reveal delay-2" aria-labelledby="remote-title">
+          <div className="panel-overline">Phone remote</div>
+          <h2 id="remote-title">Pair an iPhone</h2>
+          <p>Scan this one-time QR code in Streamline Remote to control the pointer, playback, volume, and dashboard from your phone.</p>
+          {!kiosk || checkingHelper || !status.helperAvailable ? (
+            <div className="unavailable" role="status" data-testid="status-remote-unavailable">
+              <CircleHelp size={15} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+              {!kiosk
+                ? 'Pairing is available from Settings on the local Linux kiosk, not from this hosted preview.'
+                : checkingHelper
+                  ? 'Checking the local kiosk helper…'
+                  : 'The local kiosk helper is unavailable, so this PC cannot display a pairing code.'}
+            </div>
+          ) : remoteControl === null ? (
+            <div className="unavailable" role="status">Loading this PC’s pairing details…</div>
+          ) : !remoteControl.available || !remoteQrValue ? (
+            <div className="unavailable" role="status" data-testid="status-remote-error">
+              <CircleHelp size={15} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+              {remoteControl.error || 'Remote pairing is unavailable on this PC.'}
+            </div>
+          ) : (
+            <div className="remote-layout">
+              <div className="remote-qr-wrap">
+                <div className="remote-qr" data-testid="remote-pairing-qr">
+                  <QRCodeSVG
+                    value={remoteQrValue}
+                    size={216}
+                    level="M"
+                    fgColor="#00416B"
+                    bgColor="#ffffff"
+                    role="img"
+                    aria-label={`One-time pairing code for ${remoteControl.computerName || 'this PC'}`}
+                  />
+                </div>
+                <div className="remote-qr-caption"><QrCode size={14} /> One-time code · refreshes after pairing</div>
+              </div>
+              <div className="remote-details">
+                <div className={`remote-input-state ${remoteControl.inputReady ? 'ready' : 'not-ready'}`} role="status">
+                  <span className="state-dot" aria-hidden="true" />
+                  <span>
+                    <strong>{remoteControl.inputReady ? 'Pointer access ready' : 'Pointer access not ready'}</strong>
+                    <span>{remoteControl.inputReady
+                      ? 'This PC can receive pointer and media controls.'
+                      : 'Install the Streamline update, then sign out and back in so Ubuntu grants local input access.'}</span>
+                  </span>
+                </div>
+                <p className="remote-network-note">
+                  Keep both devices on the same trusted Wi-Fi. Some university networks block device-to-device traffic.
+                  Control traffic stays on your local network; it is not relayed through Streamline.
+                </p>
+                <button
+                  className="clear-button remote-refresh"
+                  type="button"
+                  data-testid="button-new-pairing-code"
+                  onClick={createRemotePairingCode}
+                  disabled={remoteBusy}
+                >
+                  <RotateCcw size={15} /> {remoteBusy ? 'Updating…' : 'Create new pairing code'}
+                </button>
+              </div>
+            </div>
+          )}
+          {remoteMessage && <div className="inline-status" role="status" data-testid="status-remote-result">{remoteMessage}</div>}
+          <div className="paired-remote-header">
+            <div>
+              <div className="panel-overline">Paired phones</div>
+              <p>Revoke a phone here if it should no longer control this PC.</p>
+            </div>
+            <Smartphone size={19} aria-hidden="true" />
+          </div>
+          {kiosk && remoteControl?.pairedDevices.length ? (
+            <ul className="paired-remote-list">
+              {remoteControl.pairedDevices.map((device) => (
+                <li className="paired-remote-row" key={device.deviceId}>
+                  <span className="paired-remote-name">{device.name}</span>
+                  <button
+                    type="button"
+                    className="remote-revoke-button"
+                    aria-label={`Revoke access for ${device.name}`}
+                    data-testid={`button-revoke-${device.deviceId}`}
+                    onClick={() => void revokeRemoteDevice(device.deviceId)}
+                    disabled={remoteBusy}
+                  >
+                    <Trash2 size={14} /> Revoke
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="unavailable paired-empty" role="status">
+              {kiosk ? 'No phones are paired with this PC yet.' : 'Paired phone controls are managed on the local kiosk.'}
+            </div>
+          )}
         </section>
         <section className="settings-panel service-order-panel reveal delay-2" aria-labelledby="order-title">
           <div className="panel-overline">Personalize</div>

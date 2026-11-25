@@ -8,6 +8,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -15,8 +16,21 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 
+REMOTE_LIB = Path("/usr/local/lib/streamline")
+if REMOTE_LIB.is_dir():
+    sys.path.insert(0, str(REMOTE_LIB))
+try:
+    from streamline_remote import RemoteControl, RemoteControlError, create_remote_server
+except ImportError as import_error:
+    RemoteControl = None
+    RemoteControlError = RuntimeError
+    create_remote_server = None
+    print(f"streamline-kiosk: remote-control support is unavailable: {import_error}")
+
+
 HOST = "127.0.0.1"
 PORT = 8765
+REMOTE_PORT = 8766
 APP_ROOT = Path("/usr/share/streamline/web")
 LEGACY_PROFILE_ROOT = Path.home() / ".local" / "share" / "streamline" / "firefox-profile"
 SNAP_PROFILE_ROOT = Path.home() / "snap" / "firefox" / "common" / "streamline-profile"
@@ -220,6 +234,7 @@ class KioskRuntime:
 
 
 runtime = KioskRuntime()
+remote_control = RemoteControl() if RemoteControl is not None else None
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
@@ -250,8 +265,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     "powerAction": runtime.power_action,
                     "powerError": runtime.power_error,
                     "wifiSettingsAvailable": _wifi_settings_command() is not None,
+                    "remoteControlAvailable": remote_control is not None and remote_control.server_error is None,
+                    "remoteInputReady": remote_control is not None and remote_control.input_ready(),
                 },
             )
+            return
+
+        if path == "/api/remote-control":
+            if self.headers.get("Host") != f"{HOST}:{PORT}":
+                self._send_json(403, {"error": "Remote pairing details are available only on the local kiosk."})
+            elif remote_control is None:
+                self._send_json(503, {"error": "Remote-control support is unavailable. Reinstall the Streamline update."})
+            else:
+                self._send_json(200, remote_control.pairing_info())
             return
 
         if path.startswith("/api/"):
@@ -306,11 +332,45 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlsplit(self.path).path
-        if path not in {"/api/clear-login", "/api/power-action", "/api/open-wifi-settings"}:
+        if path not in {
+            "/api/clear-login",
+            "/api/power-action",
+            "/api/open-wifi-settings",
+            "/api/remote-pairing/new",
+            "/api/remote-pairing/revoke",
+        }:
             self._send_json(404, {"error": "Not found"})
             return
         payload = self._read_local_json()
         if payload is None:
+            return
+
+        if path == "/api/remote-pairing/new":
+            if payload != {}:
+                self._send_json(400, {"error": "Expected an empty JSON object"})
+                return
+            if remote_control is None:
+                self._send_json(503, {"error": "Remote-control support is unavailable."})
+                return
+            self._send_json(200, remote_control.refresh_pairing_code())
+            return
+
+        if path == "/api/remote-pairing/revoke":
+            if set(payload) != {"deviceId"}:
+                self._send_json(400, {"error": "A paired device ID is required."})
+                return
+            if remote_control is None:
+                self._send_json(503, {"error": "Remote-control support is unavailable."})
+                return
+            try:
+                revoked = remote_control.revoke_device(payload.get("deviceId"))
+            except RemoteControlError as error:
+                self._send_json(400, {"error": str(error)})
+                return
+            if not revoked:
+                self._send_json(404, {"error": "That phone is no longer paired."})
+                return
+            self._send_json(200, {"accepted": True})
             return
 
         if path == "/api/power-action":
@@ -416,6 +476,22 @@ def main() -> None:
     PROFILE_ROOT.mkdir(parents=True, exist_ok=True)
     server = ThreadingHTTPServer((HOST, PORT), DashboardHandler)
     server.daemon_threads = True
+    remote_server = None
+    remote_server_thread = None
+    if remote_control is not None and create_remote_server is not None:
+        try:
+            remote_server = create_remote_server(remote_control)
+        except OSError as error:
+            remote_control.server_error = f"Could not start the local remote-control service: {error}"
+            print(f"streamline-kiosk: {remote_control.server_error}")
+        else:
+            remote_server_thread = threading.Thread(
+                target=remote_server.serve_forever,
+                kwargs={"poll_interval": 0.25},
+                name="streamline-remote-control",
+                daemon=True,
+            )
+            remote_server_thread.start()
     runtime.browser = threading.Thread(
         target=runtime.supervise_browser,
         name="streamline-firefox",
@@ -430,6 +506,13 @@ def main() -> None:
         runtime.stop.set()
         runtime.clear_profile.set()
         server.shutdown()
+        if remote_server is not None:
+            remote_server.shutdown()
+            remote_server.server_close()
+        if remote_server_thread is not None:
+            remote_server_thread.join(timeout=3)
+        if remote_control is not None:
+            remote_control.close()
         if runtime.browser is not None:
             runtime.browser.join(timeout=10)
         server.server_close()
