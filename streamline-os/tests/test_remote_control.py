@@ -1,6 +1,8 @@
 import importlib.util
+import base64
 import ipaddress
 import json
+import socket
 import tempfile
 import threading
 import unittest
@@ -185,6 +187,59 @@ class RemoteControlTests(unittest.TestCase):
                 else:
                     self.fail("Revoked token should not authorize status.")
             finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=3)
+                control.close()
+
+    def test_websocket_heartbeat_keeps_control_session_open(self):
+        with tempfile.TemporaryDirectory() as directory:
+            control, _fake_input = self.make_control(directory)
+            paired = control.pair("127.0.0.1", control._pairing_code, "Test iPhone")
+            server = REMOTE.create_remote_server(control, host="127.0.0.1", port=0)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            client = socket.create_connection(("127.0.0.1", server.server_address[1]), timeout=3)
+            client.settimeout(3)
+
+            def read_exact(size):
+                content = bytearray()
+                while len(content) < size:
+                    chunk = client.recv(size - len(content))
+                    if not chunk:
+                        raise ConnectionError("WebSocket closed before the expected response.")
+                    content.extend(chunk)
+                return bytes(content)
+
+            try:
+                key = base64.b64encode(b"0123456789abcdef").decode("ascii")
+                client.sendall(
+                    (
+                        f"GET /api/remote-input?token={paired['token']} HTTP/1.1\r\n"
+                        f"Host: 127.0.0.1:{server.server_address[1]}\r\n"
+                        "Upgrade: websocket\r\n"
+                        "Connection: Upgrade\r\n"
+                        f"Sec-WebSocket-Key: {key}\r\n"
+                        "Sec-WebSocket-Version: 13\r\n\r\n"
+                    ).encode("ascii")
+                )
+                handshake = bytearray()
+                while b"\r\n\r\n" not in handshake:
+                    handshake.extend(client.recv(1024))
+                self.assertIn(b"101 Switching Protocols", handshake)
+
+                payload = b'{"type":"ping"}'
+                mask = b"\x11\x22\x33\x44"
+                masked_payload = bytes(value ^ mask[index % 4] for index, value in enumerate(payload))
+                client.sendall(bytes((0x81, 0x80 | len(payload))) + mask + masked_payload)
+
+                first, second = read_exact(2)
+                self.assertEqual(first & 0x0F, 0x1)
+                length = second & 0x7F
+                response = json.loads(read_exact(length))
+                self.assertEqual(response, {"type": "pong"})
+            finally:
+                client.close()
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=3)

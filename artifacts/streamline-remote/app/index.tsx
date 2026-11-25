@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AppState,
   ActivityIndicator,
   Alert,
   Image,
@@ -148,43 +149,104 @@ function RemoteScreen({
 
   useEffect(() => {
     let mounted = true;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+    let retryDelay = 1_000;
+    let wasBackgrounded = false;
+    let lastPongAt = Date.now();
     setConnected(false);
     setStatusMessage('Connecting to your PC…');
-    const socket = new WebSocket(remoteSocketUrl(device));
-    socketRef.current = socket;
-    socket.onopen = () => {
+    const connect = () => {
       if (!mounted) return;
-      setConnected(true);
-      setStatusMessage('');
+      const socket = new WebSocket(remoteSocketUrl(device));
+      socketRef.current = socket;
+      socket.onopen = () => {
+        if (!mounted) return;
+        retryDelay = 1_000;
+        lastPongAt = Date.now();
+        setConnected(true);
+        setStatusMessage('');
+      };
+      socket.onmessage = (event) => {
+        if (typeof event.data !== 'string') return;
+        try {
+          const message = JSON.parse(event.data) as { error?: unknown; type?: unknown };
+          if (message.type === 'pong') {
+            lastPongAt = Date.now();
+            return;
+          }
+          if (typeof message.error === 'string' && mounted) setStatusMessage(message.error);
+        } catch {
+          // Ignore non-JSON control acknowledgements.
+        }
+      };
+      socket.onerror = () => {
+        if (!mounted) return;
+        setConnected(false);
+        setStatusMessage('Connection lost. Reconnecting…');
+        socket.close();
+      };
+      socket.onclose = () => {
+        if (!mounted) return;
+        setConnected(false);
+        if (reconnectTimer) return;
+        setStatusMessage('Connection lost. Reconnecting…');
+        const delay = retryDelay;
+        retryDelay = Math.min(retryDelay * 2, 30_000);
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          connect();
+        }, delay);
+      };
     };
-    socket.onmessage = (event) => {
-      if (typeof event.data !== 'string') return;
+
+    connect();
+    heartbeatTimer = setInterval(() => {
+      const socket = socketRef.current;
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      if (Date.now() - lastPongAt > 45_000) {
+        socket.close();
+        return;
+      }
       try {
-        const message = JSON.parse(event.data) as { error?: unknown };
-        if (typeof message.error === 'string' && mounted) setStatusMessage(message.error);
+        socket.send(JSON.stringify({ type: 'ping' }));
       } catch {
-        // Ignore non-JSON control acknowledgements.
+        socket.close();
       }
-    };
-    socket.onerror = () => {
-      if (mounted) {
-        setConnected(false);
-        setStatusMessage('Could not connect. Check that both devices are on the same Wi-Fi.');
+    }, 15_000);
+
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active') {
+        wasBackgrounded = true;
+        return;
       }
-    };
-    socket.onclose = () => {
-      if (mounted) {
-        setConnected(false);
-        setStatusMessage((current) => current || 'Connection closed. Reconnect to the PC’s Wi-Fi.');
+      if (!wasBackgrounded) return;
+      wasBackgrounded = false;
+      const socket = socketRef.current;
+      if (socket && socket.readyState !== WebSocket.CLOSED && socket.readyState !== WebSocket.CLOSING) {
+        socket.close(1000, 'App resumed');
+      } else {
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+        connect();
       }
-    };
+    });
+
     return () => {
       mounted = false;
-      socket.onopen = null;
-      socket.onmessage = null;
-      socket.onerror = null;
-      socket.onclose = null;
-      socket.close();
+      appStateSubscription.remove();
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      const socket = socketRef.current;
+      if (socket) {
+        socket.onopen = null;
+        socket.onmessage = null;
+        socket.onerror = null;
+        socket.onclose = null;
+        socket.close();
+      }
       socketRef.current = null;
     };
   }, [device, connectionAttempt]);

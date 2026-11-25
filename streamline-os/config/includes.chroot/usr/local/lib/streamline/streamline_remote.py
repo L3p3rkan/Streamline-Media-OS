@@ -588,6 +588,13 @@ def _make_handler(control: RemoteControl):
                         )
                         return
 
+                    try:
+                        message = json.loads(payload)
+                    except (ValueError, json.JSONDecodeError) as error:
+                        raise ConnectionError("Invalid pointer message.") from error
+                    if isinstance(message, dict) and message == {"type": "ping"}:
+                        _send_ws_frame(self.connection, 0x1, b'{"type":"pong"}')
+                        continue
                     now = time.monotonic()
                     if now - event_window >= 1:
                         event_window = now
@@ -595,11 +602,6 @@ def _make_handler(control: RemoteControl):
                     event_count += 1
                     if event_count > MAX_POINTER_EVENTS_PER_SECOND:
                         raise ConnectionError("Pointer event rate limit exceeded.")
-
-                    try:
-                        message = json.loads(payload)
-                    except (ValueError, json.JSONDecodeError) as error:
-                        raise ConnectionError("Invalid pointer message.") from error
                     if (
                         not isinstance(message, dict)
                         or set(message) != {"type", "dx", "dy"}
