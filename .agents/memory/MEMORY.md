@@ -1,1 +1,2 @@
 - [Streamline service logos](streamline-service-logos.md) — use locally bundled provider-published icons and keep their source URLs documented for kiosk use.
+- [Streamline Firefox DRM](streamline-firefox-drm.md) — Apple TV+ playback worked after enabling DRM-controlled content in the kiosk Firefox profile.
