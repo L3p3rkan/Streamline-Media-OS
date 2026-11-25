@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+if [ "${1:-}" = "configure" ]; then
+  if command -v modprobe >/dev/null 2>&1; then
+    modprobe uinput || true
+  fi
+  if command -v udevadm >/dev/null 2>&1; then
+    udevadm control --reload-rules || true
+    if [ -e /dev/uinput ]; then
+      udevadm trigger /dev/uinput || true
+    fi
+  fi
+fi
+
+exit 0

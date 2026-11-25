@@ -133,7 +133,11 @@ class RemoteControl:
         self.storage_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.storage_path.parent, 0o700)
         temporary = self.storage_path.with_suffix(".json.tmp")
-        content = json.dumps(list(self._pairings.values()), separators=(",", ":"))
+        saved_pairings = [
+            {"tokenHash": token_hash, **entry}
+            for token_hash, entry in self._pairings.items()
+        ]
+        content = json.dumps(saved_pairings, separators=(",", ":"))
         with temporary.open("w", encoding="utf-8") as file:
             os.chmod(temporary, 0o600)
             file.write(content)
@@ -234,7 +238,12 @@ class RemoteControl:
                 "name": _safe_device_name(client_name),
                 "createdAt": int(time.time()),
             }
-            self._save_pairings()
+            try:
+                self._save_pairings()
+            except OSError as error:
+                del self._pairings[token_hash]
+                self.storage_error = f"Could not save phone pairing: {error}"
+                raise RemoteControlError(self.storage_error, 503) from error
             self._pairing_code = None
             return {
                 "deviceId": device_id,
@@ -276,14 +285,22 @@ class RemoteControl:
             if match is None:
                 return False
             del self._pairings[match]
-            self._save_pairings()
+            try:
+                self._save_pairings()
+            except OSError as error:
+                self.storage_error = f"Could not save phone pairing changes: {error}"
+                raise RemoteControlError(self.storage_error, 503) from error
             return True
 
     def unpair_token(self, token: str) -> None:
         token_hash, _entry = self._authorized_pairing(token)
         with self._pairing_lock:
             del self._pairings[token_hash]
-            self._save_pairings()
+            try:
+                self._save_pairings()
+            except OSError as error:
+                self.storage_error = f"Could not save phone pairing changes: {error}"
+                raise RemoteControlError(self.storage_error, 503) from error
 
     def input_ready(self) -> bool:
         if self._input is not None:
@@ -478,7 +495,7 @@ def _make_handler(control: RemoteControl):
             self.send_header("Sec-WebSocket-Accept", accept)
             self.end_headers()
             self.wfile.flush()
-            self.connection.settimeout(35)
+            self.connection.settimeout(None)
             event_window = time.monotonic()
             event_count = 0
 

@@ -33,3 +33,4 @@ xfce4-power-manager
 xfce4-screenshooter
 systemd-timesyncd
 python3
+python3-evdev

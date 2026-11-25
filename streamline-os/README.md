@@ -70,15 +70,15 @@ pnpm install --frozen-lockfile
 ./streamline-os/build-ubuntu-package.sh
 ```
 
-The package and its SHA-256 checksum are written to `streamline-os/packages/`. To produce a release download, push a version tag such as `v0.1.2`; GitHub Actions builds the package and attaches it to that release. Because this source repository is private, IT must download the package and share it through an approved university channel or USB drive.
+The package and its SHA-256 checksum are written to `streamline-os/packages/`. To produce a release download, push a version tag such as `v0.1.3`; GitHub Actions builds the package and attaches it to that release. Because this source repository is private, IT must download the package and share it through an approved university channel or USB drive.
 
 On the student computer, download the `.deb` and open it with Ubuntu's software installer. Alternatively, install it from the folder containing the package:
 
 ```sh
-sudo apt install ./streamline-kiosk_0.1.2_amd64.deb
+sudo apt install ./streamline-kiosk_0.1.3_amd64.deb
 ```
 
-Sign out and back in, or reboot, to start Streamline. The package does not enable automatic login; configure that separately only if appropriate for the student's private device. It installs a system-wide desktop autostart entry, so Streamline starts for desktop users on that computer.
+Sign out and back in, or reboot, to start Streamline and apply the local input-device permission. The package does not enable automatic login; configure that separately only if appropriate for the student's private device. It installs a system-wide desktop autostart entry, so Streamline starts for desktop users on that computer.
 
 To upgrade, install a newer `.deb` the same way. To remove Streamline, run `sudo apt remove streamline-kiosk`; this removes the app and its autostart entry but **does not erase saved Firefox logins or profiles**. Those remain in each user's home folder unless they separately use **Settings → Clear Login**.
 
@@ -89,9 +89,20 @@ To upgrade, install a newer `.deb` the same way. To remove Streamline, run `sudo
 3. Open a provider from the Streamline dashboard and sign in on its official site.
 4. If desired, let Firefox save the sign-in in its local password manager. Consider setting a Firefox Primary Password and enabling full-disk encryption when installing the system.
 5. Use **Settings → Clear Login** to erase this device's Streamline Firefox profile and restart with a clean one.
-6. Use **Power** in the header to open **Power Off** or **Restart**. Choose one action in the confirmation dialog; these controls work only on the local kiosk, not the hosted preview.
+6. Use **Settings → Pair an iPhone** to display a one-time QR code, then scan it with the Streamline Remote iPhone app. Pairing codes expire after five minutes and can be refreshed.
+7. Use **Power** in the header to open **Power Off** or **Restart**. Choose one action in the confirmation dialog; these controls work only on the local kiosk, not the hosted preview.
 
-## Wireless remote
+## iPhone remote
+
+The companion app pairs each Streamline PC separately. On the phone, choose **Pair a Streamline PC** and scan that computer's QR code from **Settings → Pair an iPhone**. Select a saved PC to use the trackpad: slide to move the pointer, tap to left-click, and use the Dashboard, Play/Pause, and volume buttons. Use **Settings → Paired phones → Revoke** on the PC to remove a phone's access. Clearing Firefox logins does not change phone pairings.
+
+The app stores its random control token in iOS secure storage. The PC saves only a hash of each token. The input helper accepts a small allowlist of pointer, media, and Firefox Home actions; it does not accept shell commands, text entry, power actions, or streaming-service passwords. Control requests are limited to private local-network addresses and are not relayed through Streamline.
+
+Both devices must be on the same Wi-Fi, and the network must allow device-to-device connections. WPA2-Enterprise protects the wireless link, but it does not guarantee that a campus network permits local connections or provide end-to-end TLS for the remote session. Remote-control traffic uses HTTP on the local network; use only a network approved for this purpose, and do not pair over an untrusted guest or public network. If a firewall is enabled, allow port `8766` only from the local network.
+
+The companion is currently available as an Expo development preview for testing; this repository does not contain a public App Store release.
+
+## USB wireless remote
 
 Most USB wireless remotes that act like a keyboard work with the dashboard's built-in navigation: use the directional pad to move focus and **OK/Enter** to select. In Firefox, **Back** moves one browser-history entry and **Home** (or **Alt+Home** on a keyboard) returns to the dashboard. Escape returns within the dashboard; on third-party service pages, the site/browser handles it normally. Power controls are in the header and require choosing an action from a dialog, which helps prevent accidental shutdowns. Remotes that send only proprietary media-control signals may need their own key-mapping software.
 
@@ -113,3 +124,4 @@ The first target is an HP EliteDesk with 7th-generation Intel Core i5. Model con
 - `config/package-lists/streamline.list.chroot` — lightweight desktop, browser, Wi-Fi, and media packages.
 - `config/includes.chroot/etc/xdg/autostart/streamline-launcher.desktop` — starts the kiosk at desktop login.
 - `config/includes.chroot/usr/local/bin/streamline-kiosk` — serves the local app, launches Firefox, and opens local Wi-Fi settings.
+- `config/includes.chroot/usr/local/lib/streamline/streamline_remote.py` — pairs phones on the local network and injects the approved pointer/media controls through Linux `uinput`.
