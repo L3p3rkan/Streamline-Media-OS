@@ -36,12 +36,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           package="streamline-os/packages/streamline-kiosk_${GITHUB_REF_NAME#v}_amd64.deb"
           checksum="$package.sha256"
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$package" "$checksum" --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" "$package" "$checksum" \
+          for attempt in 1 2 3; do
+            if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+              if gh release upload "$GITHUB_REF_NAME" "$package" "$checksum" --clobber; then
+                exit 0
+              fi
+            elif gh release create "$GITHUB_REF_NAME" "$package" "$checksum" \
+              --target "$GITHUB_SHA" \
               --title "Streamline ${GITHUB_REF_NAME}" \
-              --generate-notes
-          fi
+              --generate-notes; then
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "Release creation or upload failed (attempt $attempt/3), retrying in 10s..." >&2
+              sleep 10
+            fi
+          done
+
+          echo "Failed to create the release or upload installer files after 3 attempts." >&2
+          exit 1
