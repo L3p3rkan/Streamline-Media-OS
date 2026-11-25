@@ -60,7 +60,10 @@ chmod 0755 "$PACKAGE_ROOT"
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_FILE="$OUTPUT_DIR/streamline-kiosk_${VERSION}_amd64.deb"
 dpkg-deb --root-owner-group --build "$PACKAGE_ROOT" "$OUTPUT_FILE"
-sha256sum "$OUTPUT_FILE" > "$OUTPUT_FILE.sha256"
+(
+  cd "$OUTPUT_DIR"
+  sha256sum "$(basename "$OUTPUT_FILE")" > "$(basename "$OUTPUT_FILE").sha256"
+)
 
 echo "Built installer: $OUTPUT_FILE"
 echo "Checksum: $OUTPUT_FILE.sha256"
